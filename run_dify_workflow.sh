@@ -8,14 +8,14 @@ else
   exit 1
 fi
 
-FILE_PATH="upload_test.txt"  # アップロードするファイル
+FILE_PATH="example_video.mp4"  # アップロードする動画ファイル
 
 # ファイルアップロード
 UPLOAD_RESPONSE=$(curl -s -X POST "$BASE_URL/files/upload" \
   -H "Authorization: Bearer $API_KEY" \
-  -F "file=@$FILE_PATH;type=text/plain" \
+  -F "file=@$FILE_PATH;type=video/mp4" \
   -F "user=$USER_ID" \
-  -F "type=TXT")
+  -F "type=VIDEO")
 
 FILE_ID=$(echo "$UPLOAD_RESPONSE" | jq -r '.id')
 
@@ -32,11 +32,11 @@ WORKFLOW_RESPONSE=$(curl -s -X POST "$BASE_URL/workflows/run" \
   -H "Content-Type: application/json" \
   -d '{
     "inputs": {
-      "orig_mail": [
+      "video": [
         {
           "transfer_method": "local_file",
           "upload_file_id": "'$FILE_ID'",
-          "type": "document"
+          "type": "video"
         }
       ]
     },

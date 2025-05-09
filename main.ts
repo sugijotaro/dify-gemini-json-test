@@ -4,9 +4,14 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 const FILE_PATH = 'upload_test.txt';
-const USER_ID = process.env.DIFY_USER_ID || '';
+const API_KEY = process.env.DIFY_API_KEY;
+const USER_ID = process.env.DIFY_USER_ID;
 
 async function main() {
+  if (!API_KEY) {
+    console.error('DIFY_API_KEYが設定されていません。');
+    process.exit(1);
+  }
   if (!USER_ID) {
     console.error('DIFY_USER_IDが設定されていません。');
     process.exit(1);

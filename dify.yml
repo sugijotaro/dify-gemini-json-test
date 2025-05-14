@@ -115,63 +115,64 @@ workflow:
         type: custom
         width: 244 # ご提示の値を参考に
       - data:
-          code: | # Pythonコードを複数行で見やすく
-            # 入力変数: input_mime_type, input_num_bytes, input_display_name
-            # これらはDifyによってPythonスクリプトのグローバルスコープに渡される
+          code: | # Pythonコードを修正
+            def main(input_mime_type: str, input_num_bytes: int, input_display_name: str) -> dict:
+                # input_mime_type, input_num_bytes, input_display_name は
+                # DifyのCodeノードの「入力変数」セクションで定義した変数名に対応します。
+                # Difyがこれらの値を引数としてmain関数に渡してくれます。
 
-            # ここで必要に応じて値をチェックしたり加工したりできる
-            # 例: print(f"MIME Type: {input_mime_type}")
-            # 例: print(f"Num Bytes: {input_num_bytes}")
-            # 例: print(f"Display Name: {input_display_name}")
+                # ここで必要に応じて値をチェックしたり加工したりできる
+                # 例: print(f"MIME Type: {input_mime_type}")
+                # 例: print(f"Num Bytes: {input_num_bytes}")
+                # 例: print(f"Display Name: {input_display_name}")
 
-            # 今回はそのまま返す
-            processed_mime_type = input_mime_type
-            processed_num_bytes = str(input_num_bytes) # HTTPヘッダー用に文字列に変換
-            processed_display_name = input_display_name
+                processed_mime_type = input_mime_type
+                processed_num_bytes = str(input_num_bytes) # HTTPヘッダー用に文字列に変換
+                processed_display_name = input_display_name
 
-            # ASCIIエンコーディングエラー対策の例 (もしファイル名が原因の場合)
-            # import re
-            # processed_display_name = re.sub(r'[^\x00-\x7F]+', '_', input_display_name)
+                # ASCIIエンコーディングエラー対策の例 (もしファイル名が原因の場合)
+                # import re
+                # processed_display_name = re.sub(r'[^\x00-\x7F]+', '_', input_display_name)
 
-
-            return {
-                "MIME_TYPE_OUT": processed_mime_type,
-                "NUM_BYTES_OUT": processed_num_bytes,
-                "DISPLAY_NAME_OUT": processed_display_name
-            }
+                # 返り値の辞書のキーが、Codeノードの「出力変数」セクションで定義した変数名に対応します。
+                return {
+                    "MIME_TYPE_OUT": processed_mime_type,
+                    "NUM_BYTES_OUT": processed_num_bytes,
+                    "DISPLAY_NAME_OUT": processed_display_name
+                }
           code_language: python3
-          desc: "アップロードファイル情報（MIMEタイプ, サイズ, 名前）を準備・確認します。"
+          desc: 'アップロードファイル情報（MIMEタイプ, サイズ, 名前）を準備・確認します。'
           outputs: # 出力変数の定義
             DISPLAY_NAME_OUT:
-              type: string # description: "処理後の表示名"
+              type: string
             MIME_TYPE_OUT:
-              type: string # description: "処理後のMIMEタイプ"
+              type: string
             NUM_BYTES_OUT:
-              type: string # description: "処理後のファイルサイズ（文字列）"
+              type: string
           selected: false
-          title: "準備: ファイル情報"
+          title: '準備: ファイル情報'
           type: code
           variables: # 入力変数のマッピング
-            - value_selector:
-                - node_start # 参照元ノードID
-                - uploaded_video_file # 参照元ノードの変数
-                - mime_type # 参照元変数のプロパティ
-              variable: input_mime_type # Pythonコード内で使う変数名
-            - value_selector:
-                - node_start
-                - uploaded_video_file
-                - size
-              variable: input_num_bytes
-            - value_selector:
-                - node_start
-                - uploaded_video_file
-                - name
-              variable: input_display_name
-        height: 220 # コードと変数定義があるので少し高めに
-        id: node_code_prepare_vars # IDを分かりやすく (1747... は自動生成IDなので変更)
-        position: { x: 350, y: 200 } # HTTPノードの前に配置
+          - value_selector:
+            - node_start
+            - uploaded_video_file
+            - mime_type
+            variable: input_mime_type # main関数の引数名と一致させる
+          - value_selector:
+            - node_start
+            - uploaded_video_file
+            - size
+            variable: input_num_bytes # main関数の引数名と一致させる
+          - value_selector:
+            - node_start
+            - uploaded_video_file
+            - name
+            variable: input_display_name # main関数の引数名と一致させる
+        height: 220
+        id: node_code_prepare_vars
+        position: { x: 350, y: 200 }
         type: custom
-        width: 280 # 少し広めに
+        width: 280
       - data:
           authorization:
             type: no-auth

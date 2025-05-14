@@ -11,7 +11,7 @@ version: 0.2.0
 workflow:
   conversation_variables: []
   environment_variables:
-    - description: "Google Gemini API Key" # 説明を修正
+    - description: Google Gemini API Key
       id: env_gemini_api_key
       name: GEMINI_API_KEY
       selector:
@@ -32,15 +32,12 @@ workflow:
       allowed_file_upload_methods:
         - local_file
       enabled: true
-      fileUploadConfig: # ご提示の値を参考にしつつ、アップロードテスト用に調整
-        audio_file_size_limit: 50
-        batch_count_limit: 1 # 1ファイルずつ
-        file_size_limit: 2000 # Dify側の制限
-        image_file_size_limit: 10
-        video_file_size_limit: 2000 # Dify側の制限
-        workflow_file_upload_limit: 1
       image:
         enabled: false
+        number_limits: 3
+        transfer_methods:
+          - local_file
+          - remote_url
       number_limits: 1
     opening_statement: Gemini File APIで処理する動画ファイルをアップロードしてください。
     retriever_resource:
@@ -54,31 +51,30 @@ workflow:
       enabled: false
     text_to_speech:
       enabled: false
+      language: ""
+      voice: ""
   graph:
     edges:
-      # Start -> Code Node
       - data:
           isInLoop: false
           sourceType: start
           targetType: code
-        id: edge_start_to_code # IDを分かりやすく
+        id: edge_start_to_code
         source: node_start
         sourceHandle: source
-        target: node_code_prepare_vars # CodeノードのID
+        target: node_code_prepare_vars
         targetHandle: target
         type: custom
-      # Code Node -> HTTP Start Upload
       - data:
           isInLoop: false
           sourceType: code
           targetType: http-request
-        id: edge_code_to_http_start_upload # IDを分かりやすく
+        id: edge_code_to_http_start_upload
         source: node_code_prepare_vars
         sourceHandle: source
         target: node_http_start_upload
         targetHandle: target
         type: custom
-      # HTTP Start Upload -> End
       - data:
           isInLoop: false
           sourceType: http-request
@@ -89,7 +85,6 @@ workflow:
         target: node_end
         targetHandle: target
         type: custom
-
     nodes:
       - data:
           desc: アップロードする動画ファイルを選択します。
@@ -102,47 +97,40 @@ workflow:
                 - video
               allowed_file_upload_methods:
                 - local_file
-              # - remote_url # 今回はローカルのみを想定
               label: 動画ファイル
               max_length: 48
               options: []
               required: true
               type: file
               variable: uploaded_video_file
-        height: 134 # ご提示の値を参考に
+        height: 134
         id: node_start
-        position: { x: 50, y: 200 }
+        position:
+          x: 50
+          y: 200
+        positionAbsolute:
+          x: 50
+          y: 200
         type: custom
-        width: 244 # ご提示の値を参考に
+        width: 244
       - data:
-          code: | # Pythonコードを修正
-            def main(input_mime_type: str, input_num_bytes: int, input_display_name: str) -> dict:
-                # input_mime_type, input_num_bytes, input_display_name は
-                # DifyのCodeノードの「入力変数」セクションで定義した変数名に対応します。
-                # Difyがこれらの値を引数としてmain関数に渡してくれます。
-
-                # ここで必要に応じて値をチェックしたり加工したりできる
-                # 例: print(f"MIME Type: {input_mime_type}")
-                # 例: print(f"Num Bytes: {input_num_bytes}")
-                # 例: print(f"Display Name: {input_display_name}")
-
-                processed_mime_type = input_mime_type
-                processed_num_bytes = str(input_num_bytes) # HTTPヘッダー用に文字列に変換
-                processed_display_name = input_display_name
-
-                # ASCIIエンコーディングエラー対策の例 (もしファイル名が原因の場合)
-                # import re
-                # processed_display_name = re.sub(r'[^\x00-\x7F]+', '_', input_display_name)
-
-                # 返り値の辞書のキーが、Codeノードの「出力変数」セクションで定義した変数名に対応します。
-                return {
-                    "MIME_TYPE_OUT": processed_mime_type,
-                    "NUM_BYTES_OUT": processed_num_bytes,
-                    "DISPLAY_NAME_OUT": processed_display_name
-                }
+          code:
+            "def main(input_mime_type: str, input_num_bytes: int, input_display_name:\
+            \ str) -> dict:\n    # input_mime_type, input_num_bytes, input_display_name\
+            \ は\n    # DifyのCodeノードの「入力変数」セクションで定義した変数名に対応します。\n    # Difyがこれらの値を引数としてmain関数に渡してくれます。\n\
+            \n    # ここで必要に応じて値をチェックしたり加工したりできる\n    # 例: print(f\"MIME Type: {input_mime_type}\"\
+            )\n    # 例: print(f\"Num Bytes: {input_num_bytes}\")\n    # 例: print(f\"\
+            Display Name: {input_display_name}\")\n\n    processed_mime_type = input_mime_type\n\
+            \    processed_num_bytes = str(input_num_bytes) # HTTPヘッダー用に文字列に変換\n   \
+            \ processed_display_name = input_display_name\n\n    # ASCIIエンコーディングエラー対策の例\
+            \ (もしファイル名が原因の場合)\n    # import re\n    # processed_display_name = re.sub(r'[^\\\
+            x00-\\x7F]+', '_', input_display_name)\n\n    # 返り値の辞書のキーが、Codeノードの「出力変数」セクションで定義した変数名に対応します。\n\
+            \    return {\n        \"MIME_TYPE_OUT\": processed_mime_type,\n       \
+            \ \"NUM_BYTES_OUT\": processed_num_bytes,\n        \"DISPLAY_NAME_OUT\"\
+            : processed_display_name\n    }\n"
           code_language: python3
-          desc: 'アップロードファイル情報（MIMEタイプ, サイズ, 名前）を準備・確認します。'
-          outputs: # 出力変数の定義
+          desc: アップロードファイル情報（MIMEタイプ, サイズ, 名前）を準備・確認します。
+          outputs:
             DISPLAY_NAME_OUT:
               type: string
             MIME_TYPE_OUT:
@@ -150,61 +138,84 @@ workflow:
             NUM_BYTES_OUT:
               type: string
           selected: false
-          title: '準備: ファイル情報'
+          title: "準備: ファイル情報"
           type: code
-          variables: # 入力変数のマッピング
-          - value_selector:
-            - node_start
-            - uploaded_video_file
-            - mime_type
-            variable: input_mime_type # main関数の引数名と一致させる
-          - value_selector:
-            - node_start
-            - uploaded_video_file
-            - size
-            variable: input_num_bytes # main関数の引数名と一致させる
-          - value_selector:
-            - node_start
-            - uploaded_video_file
-            - name
-            variable: input_display_name # main関数の引数名と一致させる
+          variables:
+            - value_selector:
+                - node_start
+                - uploaded_video_file
+                - mime_type
+              variable: input_mime_type
+            - value_selector:
+                - node_start
+                - uploaded_video_file
+                - size
+              variable: input_num_bytes
+            - value_selector:
+                - node_start
+                - uploaded_video_file
+                - name
+              variable: input_display_name
         height: 220
         id: node_code_prepare_vars
-        position: { x: 350, y: 200 }
+        position:
+          x: 332.5
+          y: 200
+        positionAbsolute:
+          x: 332.5
+          y: 200
+        selected: false
         type: custom
         width: 280
       - data:
           authorization:
             type: no-auth
           body:
-            data: # JSON文字列としてエスケープ
-              '{
-              "file": {
-              "displayName": "{{#node_code_prepare_vars.DISPLAY_NAME_OUT#}}"
-              }
-              }'
+            data:
+              - type: text
+                value:
+                  '{ "file": { "displayName": "{{#node_code_prepare_vars.DISPLAY_NAME_OUT#}}"
+                  } }'
             type: json
           desc: "Gemini File API: Resumable uploadセッションを開始し、アップロードURLを取得します。"
-          headers: | # パイプを使った複数行ヘッダーに戻す
-            X-Goog-Upload-Protocol: resumable
-            X-Goog-Upload-Command: start
-            X-Goog-Upload-Header-Content-Type: {{#node_code_prepare_vars.MIME_TYPE_OUT#}}
-            X-Goog-Upload-Header-Content-Length: {{#node_code_prepare_vars.NUM_BYTES_OUT#}}
-            Content-Type: application/json; charset=utf-8
+          headers: "X-Goog-Upload-Protocol:resumable
+
+            X-Goog-Upload-Command:start
+
+            X-Goog-Upload-Header-Content-Type:{{#node_code_prepare_vars.MIME_TYPE_OUT#}}
+
+            X-Goog-Upload-Header-Content-Length:{{#node_code_prepare_vars.NUM_BYTES_OUT#}}
+
+            Content-Type:application/json; charset=utf-8"
           method: post
-          params: "uploadType=resumable&key={{#env.GEMINI_API_KEY#}}" # keyパラメータを追加
+          params: "uploadType:resumable
+
+            key:{{#env.GEMINI_API_KEY#}}"
           retry_config:
             max_retries: "1"
             retry_enabled: false
             retry_interval: 5000
-          selected: false
-          # ssl_verify と timeout はDifyのデフォルトに任せるか、必要なら明示
+          selected: true
+          ssl_verify: true
+          timeout:
+            connect: 10
+            max_connect_timeout: 10
+            max_read_timeout: 60
+            max_write_timeout: 20
+            read: 60
+            write: 20
           title: "1. File API: Start Upload Session"
           type: http-request
           url: https://generativelanguage.googleapis.com/upload/v1beta/files
-        height: 260 # ヘッダーが増えたので少し高さを調整
+        height: 260
         id: node_http_start_upload
-        position: { x: 680, y: 200 } # Codeノードの後ろに配置
+        position:
+          x: 680
+          y: 200
+        positionAbsolute:
+          x: 680
+          y: 200
+        selected: true
         type: custom
         width: 300
       - data:
@@ -222,7 +233,6 @@ workflow:
                 - node_http_start_upload
                 - status_code
               variable: status_code
-            # Codeノードの出力も確認できるように追加 (デバッグ用)
             - value_selector:
                 - node_code_prepare_vars
                 - MIME_TYPE_OUT
@@ -238,10 +248,18 @@ workflow:
           selected: false
           title: 終了 (Upload URL取得結果と準備変数)
           type: end
-        height: 240 # 出力項目が増えたので調整
+        height: 240
         id: node_end
-        position: { x: 1030, y: 200 } # HTTPノードの後ろに配置
+        position:
+          x: 1030
+          y: 200
+        positionAbsolute:
+          x: 1030
+          y: 200
+        selected: false
         type: custom
-        width: 320 # 少し広めに
-
-    viewport: { x: 0, y: 0, zoom: 0.8 } # 全体が見えるように調整
+        width: 320
+    viewport:
+      x: 0
+      y: 0
+      zoom: 1

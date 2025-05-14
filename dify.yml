@@ -5,14 +5,18 @@ app:
   mode: workflow
   name: Gemini Full Video Upload and Process
   use_icon_as_answer_icon: false
-dependencies: []
+dependencies:
+  - current_identifier: null
+    type: marketplace
+    value:
+      marketplace_plugin_unique_identifier: langgenius/json_process:0.0.2@7afb534cc85b28a8e9c7f9410d1cfc31fb7bd3950023355a37059dbe809ac776
 kind: app
 version: 0.2.0
 workflow:
   conversation_variables: []
   environment_variables:
     - description: ""
-      id: 2eecbdb1-6c90-4ef4-a6a4-56382ff374e5
+      id: d81e0f0b-047e-4377-9fa5-fa50241708b6
       name: GEMINI_API_KEY
       selector:
         - env
@@ -247,15 +251,17 @@ workflow:
                   } }'
             type: json
           desc: "Gemini File API: Resumable uploadセッションを開始し、アップロードURLを取得します。"
-          headers: "X-Goog-Upload-Protocol:resumable
+          headers: "X-Goog-Upload-Protocol: resumable
 
-            X-Goog-Upload-Command:start
+            X-Goog-Upload-Command: start
 
-            X-Goog-Upload-Header-Content-Type:{{#node_code_prepare_vars.MIME_TYPE_OUT#}}
+            X-Goog-Upload-Header-Content-Type: {{#node_code_prepare_vars.MIME_TYPE_OUT#}}
 
-            X-Goog-Upload-Header-Content-Length:{{#node_code_prepare_vars.NUM_BYTES_OUT#}}
+            X-Goog-Upload-Header-Content-Length: {{#node_code_prepare_vars.NUM_BYTES_OUT#}}
 
-            Content-Type:application/json; charset=utf-8"
+            Content-Type: application/json; charset=utf-8
+
+            "
           method: post
           params: "key:{{#env.GEMINI_API_KEY#}}
 
@@ -340,20 +346,14 @@ workflow:
       - data:
           code:
             "def main(response_headers: dict) -> dict:\n    upload_url = \"\"\n\
-            \    # Difyがレスポンスヘッダーを辞書として渡すことを想定\n    # ヘッダー名は大文字・小文字がAPIやDifyのバージョンによって異なる可能性があるため、\n\
-            \    # 複数の一般的なキー名を試すか、キーを小文字に変換して比較する。\n    \n    # 一般的なキー名で試す (DifyのHTTPノードの出力形式に依存)\n\
-            \    # ヘッダーキーは通常、小文字で返されることが多い\n    key_to_check = 'x-goog-upload-url' #\
-            \ まず小文字で試す\n    if key_to_check in response_headers:\n        upload_url\
-            \ = response_headers[key_to_check]\n    elif 'X-Goog-Upload-URL' in response_headers:\
-            \ # 大文字も試す\n        upload_url = response_headers['X-Goog-Upload-URL']\n\
-            \    \n    # ヘッダー値がリストの場合、最初の要素を取得 (単一の値と仮定)\n    if isinstance(upload_url,\
-            \ list) and len(upload_url) > 0:\n        upload_url = upload_url[0]\n \
-            \   elif isinstance(upload_url, list) and len(upload_url) == 0:\n      \
-            \  upload_url = \"\" # 空リストの場合は空文字列に\n\n    if not upload_url:\n       \
-            \ print(f\"Warning: X-Goog-Upload-URL not found in headers dict. Headers\
-            \ received: {response_headers}\")\n        # エラーを示す値を設定することも検討 (例: \"ERROR_URL_NOT_FOUND\"\
-            )\n    \n    # print(f\"Extracted Upload URL: {upload_url}\")\n    return\
-            \ {\"processed_upload_url\": str(upload_url)} # 念のためstr()\n"
+            \    key_to_check = 'x-goog-upload-url'\n    if key_to_check in response_headers:\n\
+            \        upload_url = response_headers[key_to_check]\n    elif 'X-Goog-Upload-URL'\
+            \ in response_headers:\n        upload_url = response_headers['X-Goog-Upload-URL']\n\
+            \    if isinstance(upload_url, list) and len(upload_url) > 0:\n        upload_url\
+            \ = upload_url[0]\n    elif isinstance(upload_url, list) and len(upload_url)\
+            \ == 0:\n        upload_url = \"\"\n    if not upload_url:\n        print(f\"\
+            Warning: X-Goog-Upload-URL not found in headers dict. Headers received:\
+            \ {response_headers}\")\n    return {\"processed_upload_url\": str(upload_url)}\n"
           code_language: python3
           desc: Start Upload SessionのレスポンスヘッダーからX-Goog-Upload-URLを抽出・準備します。
           outputs:
@@ -375,7 +375,6 @@ workflow:
         positionAbsolute:
           x: 1280
           y: 300
-        selected: false
         type: custom
         width: 244
       - data:
@@ -386,7 +385,7 @@ workflow:
               - file:
                   - node_start
                   - uploaded_video_file
-                id: key-value-23
+                id: key-value-397
                 type: file
             type: binary
           desc: 実際の動画データをアップロードします。
@@ -401,7 +400,7 @@ workflow:
             max_retries: "1"
             retry_enabled: true
             retry_interval: 10000
-          selected: true
+          selected: false
           ssl_verify: true
           timeout:
             connect: 10
@@ -413,15 +412,15 @@ workflow:
           title: "2. File API: Upload Actual Data"
           type: http-request
           url: "{{#node_prepare_upload_url.processed_upload_url#}}"
-        height: 170
+        height: 141
         id: node_http_upload_data_actual
         position:
-          x: 1610
+          x: 1608.635931877814
           y: 300
         positionAbsolute:
-          x: 1610
+          x: 1608.635931877814
           y: 300
-        selected: true
+        selected: false
         type: custom
         width: 244
       - data:
@@ -431,6 +430,8 @@ workflow:
           provider_type: builtin
           selected: false
           title: 3. Extract File URI
+          tool_configurations:
+            ensure_ascii: 1
           tool_label: JSON Parse
           tool_name: parse
           tool_parameters:
@@ -441,7 +442,7 @@ workflow:
               type: mixed
               value: file.uri
           type: tool
-        height: 98
+        height: 134
         id: node_extract_file_uri
         position:
           x: 1940
@@ -449,31 +450,45 @@ workflow:
         positionAbsolute:
           x: 1940
           y: 300
+        selected: false
         type: custom
         width: 244
       - data:
           authorization:
+            config:
+              api_key: "{{#env.GEMINI_API_KEY#}}"
+              header: key
+              type: custom
             type: no-auth
           body:
             data:
-              "{\n  \"contents\": [{\n    \"parts\":[\n      {\"file_data\":{\"\
-              mime_type\": \"{{#node_code_prepare_vars.MIME_TYPE_OUT#}}\", \"file_uri\"\
-              : \"{{#node_extract_file_uri.text#}}\"}},\n      {\"text\": \"Summarize\
-              \ this video. Then create a quiz with an answer key based on the information\
-              \ in this video.\"}\n    ]\n  }]\n}\n"
+              - type: text
+                value:
+                  "{\n  \"contents\": [{\n    \"parts\":[\n      {\"file_data\":{\"\
+                  mime_type\": \"{{#node_code_prepare_vars.MIME_TYPE_OUT#}}\", \"file_uri\"\
+                  : \"{{#node_extract_file_uri.text#}}\"}},\n      {\"text\": \"以下の動画から主要なシーンを抽出し、各クリップの開始時間・終了時間・タイトル・重要度（1〜3）を\
+                  \ JSON 形式で出力してください。\"}\n    ]\n  }]\n}\n"
             type: json
           desc: アップロードされた動画を使用してコンテンツを生成します。
-          headers: "Content-Type: application/json; charset=utf-8"
+          headers: Content-Type:application/json; charset=utf-8
           method: post
-          params: key={{#env.GEMINI_API_KEY#}}
+          params: key:{{#env.GEMINI_API_KEY#}}
           retry_config:
             max_retries: "1"
             retry_enabled: true
             retry_interval: 5000
           selected: false
+          ssl_verify: true
+          timeout:
+            connect: 10
+            max_connect_timeout: 10
+            max_read_timeout: 60
+            max_write_timeout: 20
+            read: 60
+            write: 20
           title: "4. Gemini: Generate Content"
           type: http-request
-          url: https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent
+          url: https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent
         height: 215
         id: node_http_generate_content
         position:
@@ -482,6 +497,7 @@ workflow:
         positionAbsolute:
           x: 2270
           y: 300
+        selected: true
         type: custom
         width: 244
       - data:
@@ -491,6 +507,8 @@ workflow:
           provider_type: builtin
           selected: false
           title: 5. Extract Generated Text
+          tool_configurations:
+            ensure_ascii: 1
           tool_label: JSON Parse
           tool_name: parse
           tool_parameters:
@@ -501,7 +519,7 @@ workflow:
               type: mixed
               value: candidates[0].content.parts[0].text
           type: tool
-        height: 98
+        height: 134
         id: node_extract_text
         position:
           x: 2600
@@ -509,6 +527,7 @@ workflow:
         positionAbsolute:
           x: 2600
           y: 300
+        selected: false
         type: custom
         width: 244
       - data:
@@ -537,6 +556,7 @@ workflow:
         positionAbsolute:
           x: 2910
           y: 300
+        selected: false
         type: custom
         width: 244
     viewport:

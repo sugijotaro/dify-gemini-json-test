@@ -12,7 +12,7 @@ workflow:
   conversation_variables: []
   environment_variables:
     - description: ""
-      id: 4613f86e-c536-4970-aa53-1dcbc030c058
+      id: bfdd1a93-ca75-48e6-8080-22dabf76b2a5
       name: GEMINI_API_KEY
       selector:
         - env
@@ -78,9 +78,19 @@ workflow:
       - data:
           isInLoop: false
           sourceType: http-request
-          targetType: end
-        id: edge_http_start_upload_to_end
+          targetType: code
+        id: edge_http_to_check_status
         source: node_http_start_upload
+        sourceHandle: source
+        target: node_check_status
+        targetHandle: target
+        type: custom
+      - data:
+          isInLoop: false
+          sourceType: code
+          targetType: end
+        id: edge_check_status_to_end
+        source: node_check_status
         sourceHandle: source
         target: node_end
         targetHandle: target
@@ -116,15 +126,8 @@ workflow:
       - data:
           code:
             "def main(input_mime_type: str, input_num_bytes: int, input_display_name:\
-            \ str) -> dict:\n    # input_mime_type, input_num_bytes, input_display_name\
-            \ は\n    # DifyのCodeノードの「入力変数」セクションで定義した変数名に対応します。\n    # Difyがこれらの値を引数としてmain関数に渡してくれます。\n\
-            \n    # ここで必要に応じて値をチェックしたり加工したりできる\n    # 例: print(f\"MIME Type: {input_mime_type}\"\
-            )\n    # 例: print(f\"Num Bytes: {input_num_bytes}\")\n    # 例: print(f\"\
-            Display Name: {input_display_name}\")\n\n    processed_mime_type = input_mime_type\n\
-            \    processed_num_bytes = str(input_num_bytes) # HTTPヘッダー用に文字列に変換\n   \
-            \ processed_display_name = input_display_name\n\n    # ASCIIエンコーディングエラー対策の例\
-            \ (もしファイル名が原因の場合)\n    # import re\n    # processed_display_name = re.sub(r'[^\\\
-            x00-\\x7F]+', '_', input_display_name)\n\n    # 返り値の辞書のキーが、Codeノードの「出力変数」セクションで定義した変数名に対応します。\n\
+            \ str) -> dict:\n    processed_mime_type = input_mime_type\n    processed_num_bytes\
+            \ = str(input_num_bytes)\n    processed_display_name = input_display_name\n\
             \    return {\n        \"MIME_TYPE_OUT\": processed_mime_type,\n       \
             \ \"NUM_BYTES_OUT\": processed_num_bytes,\n        \"DISPLAY_NAME_OUT\"\
             : processed_display_name\n    }\n"
@@ -137,7 +140,7 @@ workflow:
               type: string
             NUM_BYTES_OUT:
               type: string
-          selected: false
+          selected: true
           title: "準備: ファイル情報"
           type: code
           variables:
@@ -159,20 +162,16 @@ workflow:
         height: 220
         id: node_code_prepare_vars
         position:
-          x: 332.5
+          x: 330
           y: 200
         positionAbsolute:
-          x: 332.5
+          x: 330
           y: 200
-        selected: false
+        selected: true
         type: custom
         width: 280
       - data:
           authorization:
-            config:
-              api_key: "{{#env.GEMINI_API_KEY#}}"
-              header: key
-              type: custom
             type: no-auth
           body:
             data:
@@ -214,16 +213,45 @@ workflow:
         height: 260
         id: node_http_start_upload
         position:
-          x: 680
+          x: 640
           y: 200
         positionAbsolute:
-          x: 680
+          x: 640
           y: 200
-        selected: true
+        selected: false
         type: custom
         width: 300
       - data:
-          desc: File API開始リクエストの結果を表示します。
+          code:
+            "def main(status_code: int) -> dict:\n    message = \"\"\n    if status_code\
+            \ == 200:\n        message = \"正常 (アップロードURL取得成功)\"\n    else:\n       \
+            \ message = f\"失敗 (ステータスコード: {status_code})\"\n    return {\"upload_status_message\"\
+            : message}\n"
+          code_language: python3
+          desc: HTTPステータスコードをチェックし、メッセージを生成します。
+          outputs:
+            upload_status_message:
+              type: string
+          selected: false
+          title: "チェック: ステータス"
+          type: code
+          variables:
+            - value_selector:
+                - node_http_start_upload
+                - status_code
+              variable: status_code
+        height: 98
+        id: node_check_status
+        position:
+          x: 970
+          y: 200
+        positionAbsolute:
+          x: 970
+          y: 200
+        type: custom
+        width: 244
+      - data:
+          desc: File API開始リクエストの結果とステータスメッセージを表示します。
           outputs:
             - value_selector:
                 - node_http_start_upload
@@ -236,7 +264,7 @@ workflow:
             - value_selector:
                 - node_http_start_upload
                 - status_code
-              variable: status_code
+              variable: original_status_code
             - value_selector:
                 - node_code_prepare_vars
                 - MIME_TYPE_OUT
@@ -249,20 +277,24 @@ workflow:
                 - node_code_prepare_vars
                 - DISPLAY_NAME_OUT
               variable: prepared_display_name
+            - value_selector:
+                - node_check_status
+                - upload_status_message
+              variable: upload_status_message_result
           selected: false
-          title: 終了 (Upload URL取得結果と準備変数)
+          title: 終了 (結果とステータス)
           type: end
-        height: 240
+        height: 290
         id: node_end
         position:
-          x: 1030
+          x: 1280
           y: 200
         positionAbsolute:
-          x: 1030
+          x: 1280
           y: 200
         selected: false
         type: custom
-        width: 320
+        width: 244
     viewport:
       x: 0
       y: 0

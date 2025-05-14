@@ -15,6 +15,8 @@ fi
 API_KEY="$SINGLE_VIDEO_URL_API_KEY"
 WORKFLOW_URL="https://api.dify.ai/v1/workflows/run"
 VIDEO_URL="https://samplelib.com/lib/preview/mp4/sample-5s.mp4"
+# VIDEO_URL="https://samplelib.com/lib/preview/mp4/sample-10s.mp4"
+# VIDEO_URL="https://samplelib.com/lib/preview/mp4/sample-30s.mp4"
 USER_ID="user"
 
 # === 実行 ===

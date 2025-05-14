@@ -12,7 +12,11 @@ fi
 API_KEY="$SINGLE_VIDEO_URL_API_KEY"
 UPLOAD_URL="https://api.dify.ai/v1/files/upload"
 WORKFLOW_URL="https://api.dify.ai/v1/workflows/run"
-LOCAL_FILE_PATH="./example_video.mp4"
+LOCAL_FILE_PATH="/Users/jotarosugiyama/repositories/aapp/output_20250512-151207_resized_full_video_1fps/part1_resized_full_video_0-600.MP4"
+# LOCAL_FILE_PATH="/Users/jotarosugiyama/repositories/aapp/output_20250512-154934_resized_full_video_1fps/part1_resized_full_video_0-60.MP4"
+# LOCAL_FILE_PATH="./example_video.mp4"
+# LOCAL_FILE_PATH="/Users/jotarosugiyama/Downloads/1046-142621379_small.mp4"
+# LOCAL_FILE_PATH="/Users/jotarosugiyama/Downloads/20250424_1747_Sushi Cat Adventure_simple_compose_01jskfp3xzemd9p1273ef32zgf.mp4"
 USER_ID="user"
 
 # === ファイル存在チェック ===
@@ -32,6 +36,14 @@ upload_response=$(curl -s -X POST "$UPLOAD_URL" \
   -F "type=MP4")
 
 upload_file_id=$(echo "$upload_response" | jq -r '.id')
+
+echo "$upload_response" | jq
+
+# 必要に応じて size チェックなども追加できる
+upload_size=$(echo "$upload_response" | jq -r '.size')
+if [ "$upload_size" -gt 104857600 ]; then
+  echo "⚠️ 警告：アップロードされたファイルサイズが100MBを超えています"
+fi
 
 if [ "$upload_file_id" == "null" ] || [ -z "$upload_file_id" ]; then
   echo "❌ ファイルアップロードに失敗しました:"

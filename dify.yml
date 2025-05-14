@@ -1,0 +1,160 @@
+app:
+  description: 'ローカルの動画ファイルをアップロードし、Gemini File APIからアップロードURLを取得します。'
+  icon: 📤 # アップロードアイコン
+  icon_background: '#D6EAF8' # 薄い青色
+  mode: workflow
+  name: Gemini File Upload - Step 1 Get URL
+  use_icon_as_answer_icon: false
+dependencies: [] # 外部ツールはまだ使わない
+kind: app
+version: 0.2.0 # ご提示のバージョンに合わせる
+workflow:
+  conversation_variables: []
+  environment_variables:
+  - description: 'Google Gemini API Key'
+    id: env_gemini_api_key # 実際にはDifyがUUIDを割り当てます
+    name: GEMINI_API_KEY
+    selector:
+    - env
+    - GEMINI_API_KEY
+    value: '' # Difyの環境変数設定で実際のキーをセット
+    value_type: secret
+  features:
+    file_upload: # アプリ全体でのファイルアップロード設定
+      allowed_file_extensions: # 具体的な動画拡張子を指定
+      - .MP4
+      - .MOV
+      - .AVI
+      - .WEBM
+      - .MPEG
+      allowed_file_types: # videoタイプを許可
+      - video
+      allowed_file_upload_methods: # ローカルファイルのみを許可
+      - local_file
+      enabled: true # ファイルアップロード機能を有効化
+      fileUploadConfig:
+        audio_file_size_limit: 50
+        batch_count_limit: 1 # 一度にアップロードするファイル数
+        file_size_limit: 2000 # Dify側の最大ファイルサイズ制限 (MB)
+        image_file_size_limit: 10
+        video_file_size_limit: 2000 # 動画ファイルの最大サイズ制限 (MB)
+        workflow_file_upload_limit: 1 # ワークフロー全体でのファイル数制限
+      image: # 画像関連の設定は今回は不要なのでデフォルト
+        enabled: false
+        number_limits: 3
+        transfer_methods:
+        - local_file
+        - remote_url
+      number_limits: 1 # アップロードファイル数を1に
+    opening_statement: 'Gemini File APIで処理する動画ファイルをアップロードしてください。'
+    retriever_resource:
+      enabled: false # 今回は未使用
+    sensitive_word_avoidance:
+      enabled: false
+    speech_to_text:
+      enabled: false
+    suggested_questions: []
+    suggested_questions_after_answer:
+      enabled: false
+    text_to_speech:
+      enabled: false
+  graph:
+    edges:
+    # Start -> HTTP Start Upload
+    - data:
+        isInLoop: false
+        sourceType: start
+        targetType: http-request
+      id: edge_start_to_http_start_upload # エッジID
+      source: node_start # 開始ノードのID
+      sourceHandle: source # 開始ノードの出力ハンドル
+      target: node_http_start_upload # HTTPリクエストノードのID
+      targetHandle: target # HTTPリクエストノードの入力ハンドル
+      type: custom
+    # HTTP Start Upload -> End
+    - data:
+        isInLoop: false
+        sourceType: http-request
+        targetType: end
+      id: edge_http_start_upload_to_end # エッジID
+      source: node_http_start_upload # HTTPリクエストノードのID
+      sourceHandle: source # HTTPリクエストノードの出力ハンドル
+      target: node_end # 終了ノードのID
+      targetHandle: target # 終了ノードの入力ハンドル
+      type: custom
+
+    nodes:
+    - data:
+        desc: 'アップロードする動画ファイルを選択します。'
+        selected: false # UI上での選択状態
+        title: 開始
+        type: start # ノードタイプ
+        variables: # 入力変数定義
+        - allowed_file_extensions: [] # 個別指定は不要 (features.file_uploadでグローバル設定)
+          allowed_file_types: # この変数で許可するファイルタイプ
+          - video
+          allowed_file_upload_methods: # この変数で許可するアップロード方法
+          - local_file
+          label: 動画ファイル # UI上の表示ラベル
+          max_length: 48 # DifyのUI上の設定値、ファイル名長とは直接関係なし
+          options: []
+          required: true # 必須入力
+          type: file # 変数タイプ
+          variable: uploaded_video_file # 変数名 (Dify内部で参照)
+      height: 150 # UI上のノードの高さ
+      id: node_start # ノードの一意なID
+      position: { x: 50, y: 200 } # UI上のノードの位置
+      type: custom # Difyのカスタムノードタイプ
+      width: 280 # UI上のノードの幅
+    - data:
+        authorization: { type: no-auth } # APIキーはURLパラメータで渡すため
+        body: # リクエストボディ
+          data: # ボディの内容 (JSON文字列としてエスケープ)
+            '{
+              "file": {
+                "displayName": "{{#node_start.uploaded_video_file.name#}}"
+              }
+            }'
+          type: json # ボディのタイプ
+        desc: 'Gemini File API: Resumable uploadセッションを開始し、アップロードURLを取得します。'
+        headers: | # リクエストヘッダー (複数行で記述)
+          X-Goog-Upload-Protocol: resumable
+          X-Goog-Upload-Command: start
+          X-Goog-Upload-Header-Content-Type: {{#node_start.uploaded_video_file.mime_type#}}
+          X-Goog-Upload-Header-Content-Length: {{#node_start.uploaded_video_file.size#}}
+          Content-Type: application/json; charset=utf-8
+        method: post # HTTPメソッド
+        params: 'uploadType=resumable&key={{#env.GEMINI_API_KEY#}}' # URLクエリパラメータ
+        retry_config: { max_retries: '1', retry_enabled: false, retry_interval: 5000 } # リトライ設定
+        title: '1. File API: Start Upload Session' # ノードのタイトル
+        type: http-request # ノードタイプ
+        url: https://generativelanguage.googleapis.com/upload/v1beta/files # リクエストURL
+      height: 260 # ヘッダーが増えたので少し高さを調整
+      id: node_http_start_upload
+      position: { x: 380, y: 200 }
+      type: custom
+      width: 300 # 少し幅を調整
+    - data:
+        desc: 'File API開始リクエストの結果を表示します。'
+        outputs: # 出力変数定義
+        - value_selector: # どの値を参照するか
+          - node_http_start_upload # 参照元ノードID
+          - headers # 参照元ノードの出力 (headers)
+          variable: response_headers # 出力変数名
+        - value_selector:
+          - node_http_start_upload
+          - body # 参照元ノードの出力 (body)
+          variable: response_body
+        - value_selector:
+          - node_http_start_upload
+          - status_code # 参照元ノードの出力 (status_code)
+          variable: status_code
+        title: 終了 (Upload URL取得結果)
+        type: end
+      height: 180 # 出力が増えたので高さを調整
+      id: node_end
+      position: { x: 730, y: 200 }
+      type: custom
+      width: 300
+
+    viewport: { x: 0, y: 0, zoom: 0.9 } # UIの表示倍率と位置

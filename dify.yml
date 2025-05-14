@@ -12,7 +12,7 @@ workflow:
   conversation_variables: []
   environment_variables:
     - description: ""
-      id: 194940be-2017-4039-a49d-a75c42a33db1
+      id: 2eecbdb1-6c90-4ef4-a6a4-56382ff374e5
       name: GEMINI_API_KEY
       selector:
         - env
@@ -32,6 +32,13 @@ workflow:
       allowed_file_upload_methods:
         - local_file
       enabled: true
+      fileUploadConfig:
+        audio_file_size_limit: 50
+        batch_count_limit: 5
+        file_size_limit: 15
+        image_file_size_limit: 10
+        video_file_size_limit: 100
+        workflow_file_upload_limit: 10
       image:
         enabled: false
         number_limits: 3
@@ -219,7 +226,7 @@ workflow:
                 - uploaded_video_file
                 - name
               variable: input_display_name
-        height: 220
+        height: 114
         id: node_code_prepare_vars
         position:
           x: 330
@@ -228,7 +235,7 @@ workflow:
           x: 330
           y: 300
         type: custom
-        width: 280
+        width: 244
       - data:
           authorization:
             type: no-auth
@@ -240,17 +247,15 @@ workflow:
                   } }'
             type: json
           desc: "Gemini File API: Resumable uploadセッションを開始し、アップロードURLを取得します。"
-          headers: "X-Goog-Upload-Protocol: resumable
+          headers: "X-Goog-Upload-Protocol:resumable
 
-            X-Goog-Upload-Command: start
+            X-Goog-Upload-Command:start
 
-            X-Goog-Upload-Header-Content-Type: {{#node_code_prepare_vars.MIME_TYPE_OUT#}}
+            X-Goog-Upload-Header-Content-Type:{{#node_code_prepare_vars.MIME_TYPE_OUT#}}
 
-            X-Goog-Upload-Header-Content-Length: {{#node_code_prepare_vars.NUM_BYTES_OUT#}}
+            X-Goog-Upload-Header-Content-Length:{{#node_code_prepare_vars.NUM_BYTES_OUT#}}
 
-            Content-Type: application/json; charset=utf-8
-
-            "
+            Content-Type:application/json; charset=utf-8"
           method: post
           params: "key:{{#env.GEMINI_API_KEY#}}
 
@@ -271,7 +276,7 @@ workflow:
           title: "1. File API: Start Upload Session"
           type: http-request
           url: https://generativelanguage.googleapis.com/upload/v1beta/files
-        height: 260
+        height: 186
         id: node_http_start_upload
         position:
           x: 640
@@ -281,7 +286,7 @@ workflow:
           y: 300
         selected: false
         type: custom
-        width: 300
+        width: 244
       - data:
           cases:
             - case_id: "true"
@@ -298,7 +303,7 @@ workflow:
           selected: false
           title: "IF/ELSE: Status OK?"
           type: if-else
-        height: 126
+        height: 170
         id: node_if_else_check_status
         position:
           x: 970
@@ -322,7 +327,7 @@ workflow:
           selected: false
           title: "終了: Upload URL取得失敗"
           type: end
-        height: 150
+        height: 160
         id: node_end_initial_api_failed
         position:
           x: 1280
@@ -331,7 +336,7 @@ workflow:
           x: 1280
           y: 150
         type: custom
-        width: 300
+        width: 244
       - data:
           code:
             "def main(response_headers: dict) -> dict:\n    upload_url = \"\"\n\
@@ -354,7 +359,7 @@ workflow:
           outputs:
             processed_upload_url:
               type: string
-          selected: true
+          selected: false
           title: "準備: Upload URL"
           type: code
           variables:
@@ -362,7 +367,7 @@ workflow:
                 - node_http_start_upload
                 - headers
               variable: response_headers
-        height: 200
+        height: 114
         id: node_prepare_upload_url
         position:
           x: 1280
@@ -370,30 +375,41 @@ workflow:
         positionAbsolute:
           x: 1280
           y: 300
-        selected: true
+        selected: false
         type: custom
-        width: 280
+        width: 244
       - data:
           authorization:
             type: no-auth
           body:
-            data: "{{#node_start.uploaded_video_file.data#}}"
+            data:
+              - file:
+                  - node_start
+                  - uploaded_video_file
+                id: key-value-23
+                type: file
             type: binary
           desc: 実際の動画データをアップロードします。
-          headers: "Content-Length: {{#node_code_prepare_vars.NUM_BYTES_OUT#}}
+          headers: "Content-Length:{{#node_code_prepare_vars.NUM_BYTES_OUT#}}
 
-            X-Goog-Upload-Offset: 0
+            X-Goog-Upload-Offset:0
 
-            X-Goog-Upload-Command: upload, finalize
-
-            "
+            X-Goog-Upload-Command:upload, finalize"
           method: put
           params: ""
           retry_config:
             max_retries: "1"
             retry_enabled: true
             retry_interval: 10000
-          selected: false
+          selected: true
+          ssl_verify: true
+          timeout:
+            connect: 10
+            max_connect_timeout: 10
+            max_read_timeout: 60
+            max_write_timeout: 20
+            read: 60
+            write: 20
           title: "2. File API: Upload Actual Data"
           type: http-request
           url: "{{#node_prepare_upload_url.processed_upload_url#}}"
@@ -405,6 +421,7 @@ workflow:
         positionAbsolute:
           x: 1610
           y: 300
+        selected: true
         type: custom
         width: 244
       - data:
@@ -424,7 +441,7 @@ workflow:
               type: mixed
               value: file.uri
           type: tool
-        height: 120
+        height: 98
         id: node_extract_file_uri
         position:
           x: 1940
@@ -433,7 +450,7 @@ workflow:
           x: 1940
           y: 300
         type: custom
-        width: 280
+        width: 244
       - data:
           authorization:
             type: no-auth
@@ -457,7 +474,7 @@ workflow:
           title: "4. Gemini: Generate Content"
           type: http-request
           url: https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent
-        height: 200
+        height: 215
         id: node_http_generate_content
         position:
           x: 2270
@@ -466,7 +483,7 @@ workflow:
           x: 2270
           y: 300
         type: custom
-        width: 300
+        width: 244
       - data:
           desc: 生成されたコンテンツのテキスト部分を抽出します。
           provider_id: langgenius/json_process/json_process
@@ -484,7 +501,7 @@ workflow:
               type: mixed
               value: candidates[0].content.parts[0].text
           type: tool
-        height: 120
+        height: 98
         id: node_extract_text
         position:
           x: 2600
@@ -493,7 +510,7 @@ workflow:
           x: 2600
           y: 300
         type: custom
-        width: 280
+        width: 244
       - data:
           desc: ワークフローが正常に完了しました。
           outputs:
@@ -512,7 +529,7 @@ workflow:
           selected: false
           title: "終了: 正常完了"
           type: end
-        height: 180
+        height: 170
         id: node_end_success
         position:
           x: 2910
@@ -521,7 +538,7 @@ workflow:
           x: 2910
           y: 300
         type: custom
-        width: 300
+        width: 244
     viewport:
       x: 0
       y: 0

@@ -1,18 +1,22 @@
 app:
-  description: ローカルの動画ファイルをアップロードし、変数を経由してGemini File APIからアップロードURLを取得します。
+  description: ローカル動画をアップロードし、Gemini File APIでファイルURIを取得後、コンテンツ生成を行います。
   icon: 📤
   icon_background: "#D6EAF8"
   mode: workflow
-  name: Gemini File Upload - Step 1 with Var Check
+  name: Gemini Full Video Upload and Process
   use_icon_as_answer_icon: false
-dependencies: []
+dependencies: # JSON Parseツール用に依存関係を追加
+  - current_identifier: null
+    type: marketplace
+    value:
+      marketplace_plugin_unique_identifier: langgenius/json_process:0.0.2@7afb534cc85b28a8e9c7f9410d1cfc31fb7bd3950023355a37059dbe809ac776
 kind: app
 version: 0.2.0
 workflow:
   conversation_variables: []
   environment_variables:
-    - description: ""
-      id: bfdd1a93-ca75-48e6-8080-22dabf76b2a5
+    - description: "Google Gemini API Key" # ご提示のIDではなく、説明的な名前に
+      id: env_gemini_api_key # Difyが自動生成するIDに任せるか、固定のUUIDなど
       name: GEMINI_API_KEY
       selector:
         - env
@@ -32,12 +36,15 @@ workflow:
       allowed_file_upload_methods:
         - local_file
       enabled: true
+      fileUploadConfig: # 調整
+        audio_file_size_limit: 50
+        batch_count_limit: 1
+        file_size_limit: 2000
+        image_file_size_limit: 10
+        video_file_size_limit: 2000
+        workflow_file_upload_limit: 1
       image:
         enabled: false
-        number_limits: 3
-        transfer_methods:
-          - local_file
-          - remote_url
       number_limits: 1
     opening_statement: Gemini File APIで処理する動画ファイルをアップロードしてください。
     retriever_resource:
@@ -51,8 +58,6 @@ workflow:
       enabled: false
     text_to_speech:
       enabled: false
-      language: ""
-      voice: ""
   graph:
     edges:
       - data:
@@ -78,23 +83,75 @@ workflow:
       - data:
           isInLoop: false
           sourceType: http-request
-          targetType: code
-        id: edge_http_to_check_status
+          targetType: if-else
+        id: edge_http_start_to_if_else # ID修正
         source: node_http_start_upload
         sourceHandle: source
-        target: node_check_status
+        target: node_if_else_check_status # If/ElseノードのID
         targetHandle: target
         type: custom
-      - data:
+      - data: # If/Else False -> End (Initial API Call Failed)
           isInLoop: false
-          sourceType: code
+          sourceType: if-else
           targetType: end
-        id: edge_check_status_to_end
-        source: node_check_status
-        sourceHandle: source
-        target: node_end
+        id: edge_if_else_false_to_end_initial_fail # ID修正
+        source: node_if_else_check_status
+        sourceHandle: "false" # If/Elseのfalse分岐
+        target: node_end_initial_api_failed # 失敗時の終了ノードID
         targetHandle: target
         type: custom
+      - data: # If/Else True -> HTTP Upload Data Actual
+          isInLoop: false
+          sourceType: if-else
+          targetType: http-request
+        id: edge_if_else_true_to_http_upload_actual # ID修正
+        source: node_if_else_check_status
+        sourceHandle: "true" # If/Elseのtrue分岐
+        target: node_http_upload_data_actual # 実際のデータアップロードノードID
+        targetHandle: target
+        type: custom
+      # New Edges for the rest of the flow
+      - data: # HTTP Upload Data Actual -> Extract File URI
+          isInLoop: false
+          sourceType: http-request
+          targetType: tool
+        id: edge_http_upload_actual_to_extract_uri
+        source: node_http_upload_data_actual
+        sourceHandle: source
+        target: node_extract_file_uri
+        targetHandle: target
+        type: custom
+      - data: # Extract File URI -> HTTP Generate Content
+          isInLoop: false
+          sourceType: tool
+          targetType: http-request
+        id: edge_extract_uri_to_generate_content
+        source: node_extract_file_uri
+        sourceHandle: source
+        target: node_http_generate_content
+        targetHandle: target
+        type: custom
+      - data: # HTTP Generate Content -> Extract Text
+          isInLoop: false
+          sourceType: http-request
+          targetType: tool
+        id: edge_generate_content_to_extract_text
+        source: node_http_generate_content
+        sourceHandle: source
+        target: node_extract_text
+        targetHandle: target
+        type: custom
+      - data: # Extract Text -> End Success
+          isInLoop: false
+          sourceType: tool
+          targetType: end
+        id: edge_extract_text_to_end_success
+        source: node_extract_text
+        sourceHandle: source
+        target: node_end_success
+        targetHandle: target
+        type: custom
+
     nodes:
       - data:
           desc: アップロードする動画ファイルを選択します。
@@ -117,10 +174,7 @@ workflow:
         id: node_start
         position:
           x: 50
-          y: 200
-        positionAbsolute:
-          x: 50
-          y: 200
+          y: 300 # Y軸を調整してスペース確保
         type: custom
         width: 244
       - data:
@@ -134,79 +188,51 @@ workflow:
           code_language: python3
           desc: アップロードファイル情報（MIMEタイプ, サイズ, 名前）を準備・確認します。
           outputs:
-            DISPLAY_NAME_OUT:
-              type: string
-            MIME_TYPE_OUT:
-              type: string
-            NUM_BYTES_OUT:
-              type: string
-          selected: true
+            DISPLAY_NAME_OUT: { type: string }
+            MIME_TYPE_OUT: { type: string }
+            NUM_BYTES_OUT: { type: string }
+          selected: false
           title: "準備: ファイル情報"
           type: code
           variables:
-            - value_selector:
-                - node_start
-                - uploaded_video_file
-                - mime_type
-              variable: input_mime_type
-            - value_selector:
-                - node_start
-                - uploaded_video_file
-                - size
-              variable: input_num_bytes
-            - value_selector:
-                - node_start
-                - uploaded_video_file
-                - name
-              variable: input_display_name
+            - {
+                value_selector: [node_start, uploaded_video_file, mime_type],
+                variable: input_mime_type,
+              }
+            - {
+                value_selector: [node_start, uploaded_video_file, size],
+                variable: input_num_bytes,
+              }
+            - {
+                value_selector: [node_start, uploaded_video_file, name],
+                variable: input_display_name,
+              }
         height: 220
         id: node_code_prepare_vars
         position:
           x: 330
-          y: 200
-        positionAbsolute:
-          x: 330
-          y: 200
-        selected: true
+          y: 300
         type: custom
         width: 280
       - data:
-          authorization:
-            type: no-auth
+          authorization: { type: no-auth }
           body:
             data:
               - type: text
-                value:
-                  '{ "file": { "displayName": "{{#node_code_prepare_vars.DISPLAY_NAME_OUT#}}"
-                  } }'
+                value: '{ "file": { "displayName": "{{#node_code_prepare_vars.DISPLAY_NAME_OUT#}}" } }'
             type: json
           desc: "Gemini File API: Resumable uploadセッションを開始し、アップロードURLを取得します。"
-          headers: "X-Goog-Upload-Protocol:resumable
-
-            X-Goog-Upload-Command:start
-
-            X-Goog-Upload-Header-Content-Type:{{#node_code_prepare_vars.MIME_TYPE_OUT#}}
-
-            X-Goog-Upload-Header-Content-Length:{{#node_code_prepare_vars.NUM_BYTES_OUT#}}
-
-            Content-Type:application/json; charset=utf-8"
+          headers: |
+            X-Goog-Upload-Protocol: resumable
+            X-Goog-Upload-Command: start
+            X-Goog-Upload-Header-Content-Type: {{#node_code_prepare_vars.MIME_TYPE_OUT#}}
+            X-Goog-Upload-Header-Content-Length: {{#node_code_prepare_vars.NUM_BYTES_OUT#}}
+            Content-Type: application/json; charset=utf-8
           method: post
-          params: "key:{{#env.GEMINI_API_KEY#}}
-
-            uploadType:resumable"
+          params: "uploadType=resumable&key={{#env.GEMINI_API_KEY#}}"
           retry_config:
-            max_retries: "1"
-            retry_enabled: false
-            retry_interval: 5000
+            { max_retries: "1", retry_enabled: false, retry_interval: 5000 }
           selected: false
-          ssl_verify: true
-          timeout:
-            connect: 10
-            max_connect_timeout: 10
-            max_read_timeout: 60
-            max_write_timeout: 20
-            read: 60
-            write: 20
           title: "1. File API: Start Upload Session"
           type: http-request
           url: https://generativelanguage.googleapis.com/upload/v1beta/files
@@ -214,87 +240,171 @@ workflow:
         id: node_http_start_upload
         position:
           x: 640
-          y: 200
-        positionAbsolute:
-          x: 640
-          y: 200
-        selected: false
+          y: 300
         type: custom
         width: 300
-      - data:
-          code:
-            "def main(status_code: int) -> dict:\n    message = \"\"\n    if status_code\
-            \ == 200:\n        message = \"正常 (アップロードURL取得成功)\"\n    else:\n       \
-            \ message = f\"失敗 (ステータスコード: {status_code})\"\n    return {\"upload_status_message\"\
-            : message}\n"
-          code_language: python3
-          desc: HTTPステータスコードをチェックし、メッセージを生成します。
-          outputs:
-            upload_status_message:
-              type: string
+      - data: # If/Else Node
+          cases:
+            - case_id: "true" # True分岐のID
+              conditions: # 条件リスト
+                - comparison_operator: "=" # 比較演算子
+                  id: condition_status_200 # 条件の一意なID
+                  value: "200" # 比較する値 (文字列として)
+                  varType: number # 比較する変数の型 (Difyではstatus_codeは数値として扱われる想定)
+                  variable_selector: # 比較する変数
+                    - node_http_start_upload # 参照元ノードID
+                    - status_code # 参照元ノードの出力変数
+              logical_operator: and # 複数条件の場合の論理演算子 (今回は1つなのでandでもorでも可)
+          desc: "HTTPステータスコードが200かどうかを判定します。"
           selected: false
-          title: "チェック: ステータス"
-          type: code
-          variables:
-            - value_selector:
-                - node_http_start_upload
-                - status_code
-              variable: status_code
-        height: 98
-        id: node_check_status
+          title: "IF/ELSE: Status OK?"
+          type: if-else
+        height: 126
+        id: node_if_else_check_status # IDをご提示の '1747208180415' から変更
         position:
           x: 970
-          y: 200
-        positionAbsolute:
-          x: 970
-          y: 200
+          y: 300
         type: custom
         width: 244
-      - data:
-          desc: File API開始リクエストの結果とステータスメッセージを表示します。
-          outputs:
-            - value_selector:
-                - node_http_start_upload
-                - headers
-              variable: response_headers
-            - value_selector:
-                - node_http_start_upload
-                - body
-              variable: response_body
-            - value_selector:
-                - node_http_start_upload
-                - status_code
-              variable: original_status_code
-            - value_selector:
-                - node_code_prepare_vars
-                - MIME_TYPE_OUT
-              variable: prepared_mime_type
-            - value_selector:
-                - node_code_prepare_vars
-                - NUM_BYTES_OUT
-              variable: prepared_num_bytes
-            - value_selector:
-                - node_code_prepare_vars
-                - DISPLAY_NAME_OUT
-              variable: prepared_display_name
-            - value_selector:
-                - node_check_status
-                - upload_status_message
-              variable: upload_status_message_result
+      - data: # End Node for Initial API Call Failure
+          desc: "最初のFile API呼び出しが失敗しました。"
+          outputs: # 失敗情報を表示
+            - value_selector: [node_http_start_upload, status_code]
+              variable: error_status_code
+            - value_selector: [node_http_start_upload, body]
+              variable: error_body
           selected: false
-          title: 終了 (結果とステータス)
+          title: "終了: Upload URL取得失敗"
           type: end
-        height: 290
-        id: node_end
+        height: 150 # 少し調整
+        id: node_end_initial_api_failed # IDをご提示の 'node_end' から変更
         position:
-          x: 1280
-          y: 200
-        positionAbsolute:
-          x: 1280
-          y: 200
-        selected: false
+          x: 1280 # IF/ELSEのFalse分岐の先
+          y: 150 # Y軸をずらして配置
         type: custom
-        width: 244
+        width: 300
+      - data: # HTTP Request Node for Actual Data Upload (If/Else True branch)
+          authorization: { type: no-auth }
+          body:
+            data: "{{#node_start.uploaded_video_file.data#}}" # ファイルデータ本体
+            type: binary # バイナリとして送信
+          desc: "実際の動画データをアップロードします。"
+          headers: |
+            Content-Length: {{#node_code_prepare_vars.NUM_BYTES_OUT#}}
+            X-Goog-Upload-Offset: 0
+            X-Goog-Upload-Command: upload, finalize
+            # Content-Type はAPI側が判断するため、ここでは通常不要だが、必要なら追加
+            # Content-Type: {{#node_code_prepare_vars.MIME_TYPE_OUT#}}
+          method: put
+          params: "" # URLパラメータは不要
+          retry_config:
+            { max_retries: "1", retry_enabled: true, retry_interval: 10000 }
+          selected: false
+          title: "2. File API: Upload Actual Data"
+          type: http-request
+          url: "{{#node_http_start_upload.headers.X-Goog-Upload-URL#}}" # 前のノードのレスポンスヘッダーから取得
+        height: 220
+        id: node_http_upload_data_actual # 新しいID
+        position:
+          x: 1280 # IF/ELSEのTrue分岐の先
+          y: 300
+        type: custom
+        width: 300
+      - data: # JSON Parse Node to Extract File URI
+          desc: "アップロードされたファイルのURIを抽出します。"
+          provider_id: langgenius/json_process/json_process # 依存関係で指定したツール
+          provider_name: langgenius/json_process/json_process
+          provider_type: builtin
+          selected: false
+          title: "3. Extract File URI"
+          tool_label: JSON Parse
+          tool_name: parse
+          tool_parameters:
+            content:
+              type: mixed
+              value: "{{#node_http_upload_data_actual.body#}}" # データアップロードのレスポンスボディ
+            json_filter:
+              type: mixed
+              value: file.uri # file.uri を抽出
+          type: tool
+        height: 120
+        id: node_extract_file_uri
+        position:
+          x: 1610 # X位置を調整
+          y: 300
+        type: custom
+        width: 280
+      - data: # HTTP Request Node for Generate Content
+          authorization: { type: no-auth }
+          body:
+            data: |
+              {
+                "contents": [{
+                  "parts":[
+                    {"file_data":{"mime_type": "{{#node_code_prepare_vars.MIME_TYPE_OUT#}}", "file_uri": "{{#node_extract_file_uri.text#}}"}},
+                    {"text": "Summarize this video. Then create a quiz with an answer key based on the information in this video."}
+                  ]
+                }]
+              }
+            type: json
+          desc: "アップロードされた動画を使用してコンテンツを生成します。"
+          headers: "Content-Type: application/json; charset=utf-8"
+          method: post
+          params: "key={{#env.GEMINI_API_KEY#}}"
+          retry_config:
+            { max_retries: "1", retry_enabled: true, retry_interval: 5000 }
+          selected: false
+          title: "4. Gemini: Generate Content"
+          type: http-request
+          url: "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent" # モデル名を固定 (または変数化)
+        height: 200
+        id: node_http_generate_content
+        position:
+          x: 1940 # X位置を調整
+          y: 300
+        type: custom
+        width: 300
+      - data: # JSON Parse Node to Extract Text from Generate Content Response
+          desc: "生成されたコンテンツのテキスト部分を抽出します。"
+          provider_id: langgenius/json_process/json_process
+          provider_name: langgenius/json_process/json_process
+          provider_type: builtin
+          selected: false
+          title: "5. Extract Generated Text"
+          tool_label: JSON Parse
+          tool_name: parse
+          tool_parameters:
+            content:
+              type: mixed
+              value: "{{#node_http_generate_content.body#}}"
+            json_filter:
+              type: mixed
+              value: candidates[0].content.parts[0].text
+          type: tool
+        height: 120
+        id: node_extract_text
+        position:
+          x: 2270 # X位置を調整
+          y: 300
+        type: custom
+        width: 280
+      - data: # End Node for Successful Completion
+          desc: "ワークフローが正常に完了しました。"
+          outputs:
+            - value_selector: [node_extract_file_uri, text]
+              variable: uploaded_file_uri
+            - value_selector: [node_extract_text, text]
+              variable: generated_content_text
+          selected: false
+          title: "終了: 正常完了"
+          type: end
+        height: 150
+        id: node_end_success
+        position:
+          x: 2580 # X位置を調整
+          y: 300
+        type: custom
+        width: 300
     viewport:
       x: 0
       y: 0

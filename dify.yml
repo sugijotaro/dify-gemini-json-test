@@ -11,8 +11,8 @@ version: 0.2.0
 workflow:
   conversation_variables: []
   environment_variables:
-    - description: Google Gemini API Key
-      id: env_gemini_api_key
+    - description: ""
+      id: 4613f86e-c536-4970-aa53-1dcbc030c058
       name: GEMINI_API_KEY
       selector:
         - env
@@ -169,6 +169,10 @@ workflow:
         width: 280
       - data:
           authorization:
+            config:
+              api_key: "{{#env.GEMINI_API_KEY#}}"
+              header: key
+              type: custom
             type: no-auth
           body:
             data:
@@ -188,14 +192,14 @@ workflow:
 
             Content-Type:application/json; charset=utf-8"
           method: post
-          params: "uploadType:resumable
+          params: "key:{{#env.GEMINI_API_KEY#}}
 
-            key:{{#env.GEMINI_API_KEY#}}"
+            uploadType:resumable"
           retry_config:
             max_retries: "1"
             retry_enabled: false
             retry_interval: 5000
-          selected: true
+          selected: false
           ssl_verify: true
           timeout:
             connect: 10

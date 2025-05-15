@@ -36,13 +36,6 @@ workflow:
       allowed_file_upload_methods:
         - local_file
       enabled: true
-      fileUploadConfig:
-        audio_file_size_limit: 50
-        batch_count_limit: 5
-        file_size_limit: 15
-        image_file_size_limit: 10
-        video_file_size_limit: 100
-        workflow_file_upload_limit: 10
       image:
         enabled: false
         number_limits: 3
@@ -192,6 +185,7 @@ workflow:
         positionAbsolute:
           x: 50
           y: 300
+        selected: false
         type: custom
         width: 244
       - data:
@@ -412,7 +406,7 @@ workflow:
           title: "2. File API: Upload Actual Data"
           type: http-request
           url: "{{#node_prepare_upload_url.processed_upload_url#}}"
-        height: 141
+        height: 170
         id: node_http_upload_data_actual
         position:
           x: 1608.635931877814
@@ -464,10 +458,26 @@ workflow:
             data:
               - type: text
                 value:
-                  "{\n  \"contents\": [{\n    \"parts\":[\n      {\"file_data\":{\"\
-                  mime_type\": \"{{#node_code_prepare_vars.MIME_TYPE_OUT#}}\", \"file_uri\"\
-                  : \"{{#node_extract_file_uri.text#}}\"}},\n      {\"text\": \"以下の動画から主要なシーンを抽出し、各クリップの開始時間・終了時間・タイトル・重要度（1〜3）を\
-                  \ JSON 形式で出力してください。\"}\n    ]\n  }]\n}\n"
+                  "{\n  \"contents\": [\n    {\n      \"parts\": [\n        {\n \
+                  \         \"file_data\": {\n            \"mime_type\": \"{{#node_code_prepare_vars.MIME_TYPE_OUT#}}\"\
+                  ,\n            \"file_uri\": \"{{#node_extract_file_uri.text#}}\"\n\
+                  \          }\n        },\n        {\n          \"text\": \"以下の動画から主要なシーンを抽出し、各クリップの開始時間・終了時間・タイトル・重要度（1〜3）を\
+                  \ JSON 形式で出力してください。日本語で\"\n        }\n      ]\n    }\n  ],\n  \"generationConfig\"\
+                  : {\n    \"responseMimeType\": \"application/json\",\n    \"responseSchema\"\
+                  : {\n      \"type\": \"OBJECT\",\n      \"properties\": {\n        \"\
+                  clips\": {\n          \"type\": \"ARRAY\",\n          \"items\": {\n\
+                  \            \"type\": \"OBJECT\",\n            \"properties\": {\n\
+                  \              \"start_time\":   { \"type\": \"STRING\",  \"description\"\
+                  : \"クリップの開始時刻（MM:SS形式）\" },\n              \"end_time\":     { \"type\"\
+                  : \"STRING\",  \"description\": \"クリップの終了時刻（MM:SS形式）\" },\n        \
+                  \      \"name\":         { \"type\": \"STRING\",  \"description\": \"\
+                  クリップのタイトル\" },\n              \"importance\":   { \"type\": \"INTEGER\"\
+                  , \"description\": \"重要度（1=高、2=中、3=低）\" }\n            },\n        \
+                  \    \"required\": [\"start_time\", \"end_time\", \"name\", \"importance\"\
+                  ],\n            \"propertyOrdering\": [\"start_time\", \"end_time\"\
+                  , \"name\", \"importance\"]\n          }\n        }\n      },\n    \
+                  \  \"required\": [\"clips\"],\n      \"propertyOrdering\": [\"clips\"\
+                  ]\n    }\n  }\n}"
             type: json
           desc: アップロードされた動画を使用してコンテンツを生成します。
           headers: Content-Type:application/json; charset=utf-8

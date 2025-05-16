@@ -257,7 +257,7 @@ async function splitVideo(inputPath: string, outDir: string): Promise<string[]> 
     const end = Math.min(start + segmentLength, totalSeconds);
     const outName = `part${idx}_${baseName}_${start}-${Math.floor(end)}.mp4`;
     const outPath = path.join(outDir, outName);
-    const drawtext = "drawtext=fontfile=/System/Library/Fonts/Helvetica.ttc:text='%{pts\\:hms}':x=(w-text_w)/2:y=h-th-10:fontcolor=white:fontsize=24:box=1:boxcolor=black@0.5:boxborderw=5";
+    const drawtext = "drawtext=fontfile=/System/Library/Fonts/Helvetica.ttc:text='%{pts\\:hms}':x=(w-text_w)/2:y=h-th-10:fontcolor=white:fontsize=48:box=1:boxcolor=black@0.5:boxborderw=10";
     const vf = `scale=1280:720,fps=1,${drawtext}`;
     const ffmpegArgs = [
       '-loglevel', 'error',

@@ -61,16 +61,20 @@ async function waitForActive(ai: GoogleGenAI, fileName: string, localName: strin
   const pollIntervalMs = 2000;
   let waited = 0;
   let fileState = '';
+  let count = 0;
   while (waited < maxWaitMs) {
+    count++;
     const fileInfo = await ai.files.get({ name: fileName });
     fileState = fileInfo.state ?? '';
     if (fileState === 'ACTIVE') {
+      process.stdout.write(`\r[WAIT] ${localName}: ACTIVEになりました（${(waited/1000).toFixed(1)}秒待機, ${count}回目リクエスト）\n`);
       return true;
     }
-    console.log(`[WAIT] ${localName}: Waiting for ACTIVE... (current state: ${fileState})`);
+    process.stdout.write(`\r[WAIT] ${localName}: ${count}回目, ${(waited/1000).toFixed(1)}秒待機中 (current state: ${fileState})`);
     await new Promise((res) => setTimeout(res, pollIntervalMs));
     waited += pollIntervalMs;
   }
+  process.stdout.write(`\n`);
   return false;
 }
 
@@ -288,7 +292,7 @@ async function splitVideo(inputPath: string, outDir: string): Promise<string[]> 
         }
       });
       ffmpegProc.on('close', (code) => {
-        process.stdout.write('\n');
+        process.stdout.write(`\n[SPLIT][${outName}] progress: 100.0%\n`);
         if (code === 0) {
           getVideoDuration(outPath).then(({ seconds }) => {
             console.log(`[SPLIT] Created: ${outName} (${seconds.toFixed(2)} sec)`);

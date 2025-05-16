@@ -336,7 +336,7 @@ async function main(): Promise<void> {
   );
 
   // 一時ファイル削除
-  fs.rmSync(splitDir, { recursive: true, force: true });
+  // fs.rmSync(splitDir, { recursive: true, force: true });
 
   const totalEnd = Date.now();
   const totalDuration = (totalEnd - totalStart) / 1000;

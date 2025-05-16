@@ -261,8 +261,7 @@ async function splitVideo(inputPath: string, outDir: string): Promise<string[]> 
     const secExpr = "%{eif\\:mod(t\\,60)\\:d\\:2}";
     const drawtext = [
       "drawtext=fontfile=/System/Library/Fonts/Helvetica.ttc",
-      // `text='${minExpr}:${secExpr}'`,
-      `text='%{pts\\:hms}`,
+      `text='${minExpr}\\:${secExpr}'`,
       "x=(w-text_w)/2",
       "y=h-th-10",
       "fontcolor=white",

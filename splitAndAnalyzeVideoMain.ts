@@ -177,6 +177,22 @@ async function analyzeFile(ai: GoogleGenAI, file: { uri: string; mimeType: strin
   }
 }
 
+async function analyzeFileWithRetry(ai: GoogleGenAI, file: { uri: string; mimeType: string; localName: string; name: string; fileSizeMB: number; uploadDuration: number }, outputDir: string, videoPath: string, maxRetries = 3) {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      await analyzeFile(ai, file, outputDir, videoPath);
+      return;
+    } catch (err: any) {
+      if (attempt < maxRetries) {
+        console.warn(`[ANALYZE][RETRY] ${file.localName} (attempt ${attempt} failed, retrying...)`);
+        await new Promise(res => setTimeout(res, 1000));
+      } else {
+        console.error(`[ANALYZE][FAILED] ${file.localName} (all ${maxRetries} attempts failed)`);
+      }
+    }
+  }
+}
+
 async function deleteFile(ai: GoogleGenAI, fileName: string, localName: string) {
   try {
     await ai.files.delete({ name: fileName });
@@ -250,13 +266,29 @@ async function splitVideo(inputPath: string, outDir: string): Promise<string[]> 
       '-map', '0:v:0',
       '-map', '0:a:0?',
       '-y',
+      '-progress', 'pipe:1',
       outPath
     ];
     await new Promise<void>((resolve, reject) => {
       let ffmpegError = '';
+      let lastProgress = 0;
       const ffmpegProc = spawn('ffmpeg', ffmpegArgs);
       ffmpegProc.stderr.on('data', (data) => { ffmpegError += data.toString(); });
+      ffmpegProc.stdout.on('data', (data) => {
+        const lines = data.toString().split(/\r?\n/);
+        for (const line of lines) {
+          if (line.startsWith('out_time_ms=')) {
+            const ms = parseInt(line.split('=')[1], 10);
+            const percent = Math.min(100, (ms / ((end - start) * 1000000)) * 100);
+            if (percent - lastProgress >= 5 || percent === 100) { // 5%ごとに表示
+              process.stdout.write(`[SPLIT][${outName}] progress: ${percent.toFixed(1)}%\r`);
+              lastProgress = percent;
+            }
+          }
+        }
+      });
       ffmpegProc.on('close', (code) => {
+        process.stdout.write('\n');
         if (code === 0) {
           getVideoDuration(outPath).then(({ seconds }) => {
             console.log(`[SPLIT] Created: ${outName} (${seconds.toFixed(2)} sec)`);
@@ -280,6 +312,7 @@ async function splitVideo(inputPath: string, outDir: string): Promise<string[]> 
 
 async function main(): Promise<void> {
   const totalStart = Date.now();
+  console.log(`[START] ${new Date(totalStart).toLocaleString()}`);
   ffmpeg.setFfprobePath(ffprobe.path);
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
@@ -338,7 +371,7 @@ async function main(): Promise<void> {
     MAX_PARALLEL_ANALYSIS,
     async (file) => {
       const filePath = path.join(splitDir, file.localName);
-      await analyzeFile(ai, file, outputDir, filePath);
+      await analyzeFileWithRetry(ai, file, outputDir, filePath);
     }
   );
 

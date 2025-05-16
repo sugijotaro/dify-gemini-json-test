@@ -32,6 +32,7 @@ async function main(): Promise<void> {
 
   const fileSizeBytes = fs.statSync(filePath).size;
   const fileSizeMB = fileSizeBytes / (1024 * 1024);
+  const fileName = filePath.split(/[\/]/).pop() || filePath;
 
   const ai = new GoogleGenAI({ apiKey });
 
@@ -42,7 +43,7 @@ async function main(): Promise<void> {
     });
     const endTime = Date.now();
     const durationSec = (endTime - startTime) / 1000;
-    console.log(JSON.stringify({ uri: myfile.uri, mimeType: myfile.mimeType }, null, 2));
+    console.log(JSON.stringify({ name: fileName, uri: myfile.uri, mimeType: myfile.mimeType }, null, 2));
     console.log(`End:   ${new Date(endTime).toLocaleString()}`);
     console.log(`File size: ${fileSizeMB.toFixed(2)} MB`);
     console.log(`Elapsed:   ${durationSec.toFixed(2)} seconds`);

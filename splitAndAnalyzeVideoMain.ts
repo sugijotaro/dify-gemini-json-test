@@ -178,6 +178,7 @@ async function analyzeFile(ai: GoogleGenAI, file: { uri: string; mimeType: strin
     console.log(`[ANALYZE] Done:  ${file.localName} (${durationSec.toFixed(2)} sec) -> ${outputPath}`);
   } catch (err: any) {
     console.error(`[ANALYZE] Failed: ${file.localName}:`, err?.message || err);
+    throw err;
   }
 }
 

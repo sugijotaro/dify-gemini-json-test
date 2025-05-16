@@ -4,6 +4,9 @@ import fs from 'fs';
 import mime from 'mime-types';
 
 async function main(): Promise<void> {
+  const startTime = Date.now();
+  console.log(`Start: ${new Date(startTime).toLocaleString()}`);
+
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
     console.error('GEMINI_API_KEY is not set in .env');
@@ -27,6 +30,9 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
+  const fileSizeBytes = fs.statSync(filePath).size;
+  const fileSizeMB = fileSizeBytes / (1024 * 1024);
+
   const ai = new GoogleGenAI({ apiKey });
 
   try {
@@ -34,7 +40,12 @@ async function main(): Promise<void> {
       file: filePath,
       config: { mimeType: mimeType as string },
     });
+    const endTime = Date.now();
+    const durationSec = (endTime - startTime) / 1000;
     console.log(JSON.stringify({ uri: myfile.uri, mimeType: myfile.mimeType }, null, 2));
+    console.log(`End:   ${new Date(endTime).toLocaleString()}`);
+    console.log(`File size: ${fileSizeMB.toFixed(2)} MB`);
+    console.log(`Elapsed:   ${durationSec.toFixed(2)} seconds`);
   } catch (err: any) {
     console.error('Upload failed:', err?.message || err);
     process.exit(1);

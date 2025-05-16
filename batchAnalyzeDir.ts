@@ -3,9 +3,14 @@ import { GoogleGenAI, createUserContent, createPartFromUri, Type } from '@google
 import fs from 'fs';
 import path from 'path';
 import mime from 'mime-types';
+import ffmpeg from 'fluent-ffmpeg';
+// @ts-ignore
+import ffprobe from 'ffprobe-static';
 
 const MAX_PARALLEL_UPLOADS = 4;
 const MAX_PARALLEL_ANALYSIS = 4;
+
+ffmpeg.setFfprobePath(ffprobe.path);
 
 async function ensureOutputDir() {
   const outputDir = path.join(process.cwd(), 'output');
@@ -68,7 +73,7 @@ async function waitForActive(ai: GoogleGenAI, fileName: string, localName: strin
   return false;
 }
 
-async function analyzeFile(ai: GoogleGenAI, file: { uri: string; mimeType: string; localName: string; name: string; fileSizeMB: number; uploadDuration: number }, outputDir: string) {
+async function analyzeFile(ai: GoogleGenAI, file: { uri: string; mimeType: string; localName: string; name: string; fileSizeMB: number; uploadDuration: number }, outputDir: string, videoPath: string) {
   const startTime = Date.now();
   console.log(`[ANALYZE] Start: ${file.localName}`);
   try {
@@ -77,6 +82,8 @@ async function analyzeFile(ai: GoogleGenAI, file: { uri: string; mimeType: strin
       console.error(`[ANALYZE] File not ACTIVE: ${file.localName}`);
       return;
     }
+    // 動画長取得
+    const { seconds: videoSeconds, mmss: videoMMSS } = await getVideoDuration(videoPath);
     const response = await ai.models.generateContent({
       model: 'gemini-2.0-flash',
       contents: createUserContent([
@@ -108,8 +115,59 @@ async function analyzeFile(ai: GoogleGenAI, file: { uri: string; mimeType: strin
         },
       },
     });
+    // clips検証・修正
+    let json: any;
+    try {
+      json = JSON.parse(response.text ?? '');
+    } catch (e) {
+      throw new Error(`[ANALYZE] Invalid JSON for ${file.localName}`);
+    }
+    if (!json.clips || !Array.isArray(json.clips)) {
+      throw new Error(`[ANALYZE] No clips array in result for ${file.localName}`);
+    }
+    // MM:SS→秒変換
+    function mmssToSeconds(mmss: string): number {
+      const [m, s] = mmss.split(':').map(Number);
+      return m * 60 + s;
+    }
+    // 範囲チェック・修正
+    let clips = json.clips;
+    // 1. 00:00でなければ修正
+    if (clips.length > 0 && clips[0].start_time !== '00:00') {
+      clips[0].start_time = '00:00';
+    }
+    // 2. 最後のend_timeが動画長と違ったら修正
+    if (clips.length > 0 && clips[clips.length-1].end_time !== videoMMSS) {
+      clips[clips.length-1].end_time = videoMMSS;
+    }
+    // 3. 範囲外チェック
+    for (const c of clips) {
+      if (mmssToSeconds(c.start_time) < 0 || mmssToSeconds(c.end_time) > Math.ceil(videoSeconds)) {
+        throw new Error(`[ANALYZE] Clip time out of range in ${file.localName}: ${c.start_time} - ${c.end_time} (動画長: ${videoMMSS})`);
+      }
+    }
+    // 4. ギャップ検出・挿入
+    let newClips = [];
+    for (let i = 0; i < clips.length; i++) {
+      newClips.push(clips[i]);
+      if (i < clips.length - 1) {
+        const endSec = mmssToSeconds(clips[i].end_time);
+        const nextStartSec = mmssToSeconds(clips[i+1].start_time);
+        if (nextStartSec > endSec) {
+          // ギャップあり
+          newClips.push({
+            start_time: secondsToMMSS(endSec),
+            end_time: secondsToMMSS(nextStartSec),
+            name: 'ギャップ',
+            importance: 3
+          });
+        }
+      }
+    }
+    clips = newClips;
+    // 保存
     const outputPath = path.join(outputDir, `${file.localName}.json`);
-    fs.writeFileSync(outputPath, response.text ?? '', 'utf-8');
+    fs.writeFileSync(outputPath, JSON.stringify({ clips }, null, 2), 'utf-8');
     const endTime = Date.now();
     const durationSec = (endTime - startTime) / 1000;
     console.log(`[ANALYZE] Done:  ${file.localName} (${durationSec.toFixed(2)} sec) -> ${outputPath}`);
@@ -148,8 +206,26 @@ async function parallelLimit<T, R>(items: T[], limit: number, fn: (item: T) => P
   return results;
 }
 
+function secondsToMMSS(seconds: number): string {
+  const m = Math.floor(seconds / 60);
+  const s = Math.round(seconds % 60);
+  return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+}
+
+async function getVideoDuration(filePath: string): Promise<{ seconds: number, mmss: string }> {
+  return new Promise((resolve, reject) => {
+    ffmpeg.ffprobe(filePath, (err: Error | null, metadata: any) => {
+      if (err) return reject(err);
+      const duration = metadata.format.duration;
+      if (!duration) return reject(new Error('Duration not found'));
+      resolve({ seconds: duration, mmss: secondsToMMSS(duration) });
+    });
+  });
+}
+
 async function main(): Promise<void> {
   const totalStart = Date.now();
+  ffmpeg.setFfprobePath(ffprobe.path);
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
     console.error('GEMINI_API_KEY is not set in .env');
@@ -203,7 +279,8 @@ async function main(): Promise<void> {
     uploadedFiles,
     MAX_PARALLEL_ANALYSIS,
     async (file) => {
-      await analyzeFile(ai, file, outputDir);
+      const filePath = path.join(dirPath, file.localName);
+      await analyzeFile(ai, file, outputDir, filePath);
     }
   );
 

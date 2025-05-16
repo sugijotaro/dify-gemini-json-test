@@ -226,39 +226,56 @@ async function getVideoDuration(filePath: string): Promise<{ seconds: number, mm
 
 async function splitVideo(inputPath: string, outDir: string): Promise<string[]> {
   if (!fs.existsSync(outDir)) fs.mkdirSync(outDir);
-  return new Promise((resolve, reject) => {
-    const outputPattern = path.join(outDir, 'output_%03d.mp4');
+  const { seconds: totalSeconds } = await getVideoDuration(inputPath);
+  const baseName = path.basename(inputPath, path.extname(inputPath));
+  const segmentLength = 600; // 10分
+  let start = 0;
+  let idx = 1;
+  const outFiles: string[] = [];
+  while (start < totalSeconds) {
+    const end = Math.min(start + segmentLength, totalSeconds);
+    const outName = `part${idx}_${baseName}_${start}-${end}.mp4`;
+    const outPath = path.join(outDir, outName);
     const ffmpegArgs = [
       '-loglevel', 'error',
+      '-ss', start.toString(),
       '-i', inputPath,
+      '-t', (end - start).toString(),
       '-vf', 'scale=1280:720,fps=1',
       '-c:v', 'libx264',
       '-preset', 'veryfast',
       '-crf', '32',
       '-c:a', 'aac',
       '-b:a', '64k',
-      '-map', '0',
-      '-segment_time', '600',
-      '-f', 'segment',
-      '-reset_timestamps', '1',
-      outputPattern
+      '-map', '0:v:0',
+      '-map', '0:a:0?',
+      '-y',
+      outPath
     ];
-    let ffmpegError = '';
-    const ffmpegProc = spawn('ffmpeg', ffmpegArgs);
-    ffmpegProc.stderr.on('data', (data) => { ffmpegError += data.toString(); });
-    ffmpegProc.on('close', (code) => {
-      if (code === 0) {
-        const files = fs.readdirSync(outDir)
-          .filter(f => f.endsWith('.mp4'))
-          .map(f => path.join(outDir, f))
-          .sort();
-        resolve(files);
-      } else {
-        if (ffmpegError) console.error('[FFMPEG ERROR]', ffmpegError);
-        reject(new Error(`ffmpeg exited with code ${code}`));
-      }
+    await new Promise<void>((resolve, reject) => {
+      let ffmpegError = '';
+      const ffmpegProc = spawn('ffmpeg', ffmpegArgs);
+      ffmpegProc.stderr.on('data', (data) => { ffmpegError += data.toString(); });
+      ffmpegProc.on('close', (code) => {
+        if (code === 0) {
+          getVideoDuration(outPath).then(({ seconds }) => {
+            console.log(`[SPLIT] Created: ${outName} (${seconds.toFixed(2)} sec)`);
+            resolve();
+          }).catch(() => {
+            console.log(`[SPLIT] Created: ${outName} (duration unknown)`);
+            resolve();
+          });
+          outFiles.push(outPath);
+        } else {
+          if (ffmpegError) console.error('[FFMPEG ERROR]', ffmpegError);
+          reject(new Error(`ffmpeg exited with code ${code}`));
+        }
+      });
     });
-  });
+    start = end;
+    idx++;
+  }
+  return outFiles;
 }
 
 async function main(): Promise<void> {

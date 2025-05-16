@@ -39,7 +39,10 @@ async function main(): Promise<void> {
 
   for (const localName of files) {
     const filePath = path.join(dirPath, localName);
-    const mimeType = mime.lookup(filePath);
+    let mimeType = mime.lookup(filePath) || '';
+    if (mimeType === 'application/mp4') {
+      mimeType = 'video/mp4';
+    }
     if (!mimeType) {
       console.warn(`Skipped (unknown mime): ${localName}`);
       continue;

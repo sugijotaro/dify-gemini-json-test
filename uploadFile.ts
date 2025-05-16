@@ -24,7 +24,10 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  const mimeType = mime.lookup(filePath);
+  let mimeType = mime.lookup(filePath) || '';
+  if (mimeType === 'application/mp4') {
+    mimeType = 'video/mp4';
+  }
   if (!mimeType) {
     console.error('Could not determine MIME type for the file.');
     process.exit(1);

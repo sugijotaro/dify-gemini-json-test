@@ -255,7 +255,7 @@ async function splitVideo(inputPath: string, outDir: string): Promise<string[]> 
   const outFiles: string[] = [];
   while (start < totalSeconds) {
     const end = Math.min(start + segmentLength, totalSeconds);
-    const outName = `part${idx}_${baseName}_${start}-${end}.mp4`;
+    const outName = `part${idx}_${baseName}_${start}-${Math.floor(end)}.mp4`;
     const outPath = path.join(outDir, outName);
     const ffmpegArgs = [
       '-loglevel', 'error',
@@ -293,12 +293,14 @@ async function splitVideo(inputPath: string, outDir: string): Promise<string[]> 
         }
       });
       ffmpegProc.on('close', (code) => {
-        process.stdout.write(`\n[SPLIT][${outName}] progress: 100.0%\n`);
+        process.stdout.write(`\r[SPLIT][${outName}] progress: 100.0%\n`);
         if (code === 0) {
           getVideoDuration(outPath).then(({ seconds }) => {
+            process.stdout.write('\n');
             console.log(`[SPLIT] Created: ${outName} (${seconds.toFixed(2)} sec)`);
             resolve();
           }).catch(() => {
+            process.stdout.write('\n');
             console.log(`[SPLIT] Created: ${outName} (duration unknown)`);
             resolve();
           });

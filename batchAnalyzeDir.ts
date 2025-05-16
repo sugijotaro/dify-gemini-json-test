@@ -118,6 +118,15 @@ async function analyzeFile(ai: GoogleGenAI, file: { uri: string; mimeType: strin
   }
 }
 
+async function deleteFile(ai: GoogleGenAI, fileName: string, localName: string) {
+  try {
+    await ai.files.delete({ name: fileName });
+    console.log(`[DELETE] Deleted: ${localName} (${fileName})`);
+  } catch (err: any) {
+    console.error(`[DELETE] Failed: ${localName} (${fileName}):`, err?.message || err);
+  }
+}
+
 async function parallelLimit<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
   const results: R[] = [];
   const executing: Promise<void>[] = [];
@@ -195,6 +204,16 @@ async function main(): Promise<void> {
     MAX_PARALLEL_ANALYSIS,
     async (file) => {
       await analyzeFile(ai, file, outputDir);
+    }
+  );
+
+  // 分析後に削除
+  console.log(`[INFO] Deleting uploaded files from server...`);
+  await parallelLimit(
+    uploadedFiles,
+    MAX_PARALLEL_ANALYSIS,
+    async (file) => {
+      await deleteFile(ai, file.name, file.localName);
     }
   );
 

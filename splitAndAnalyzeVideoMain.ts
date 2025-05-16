@@ -229,6 +229,7 @@ async function splitVideo(inputPath: string, outDir: string): Promise<string[]> 
   return new Promise((resolve, reject) => {
     const outputPattern = path.join(outDir, 'output_%03d.mp4');
     const ffmpegArgs = [
+      '-loglevel', 'error',
       '-i', inputPath,
       '-vf', 'scale=1280:720,fps=1',
       '-c:v', 'libx264',
@@ -242,8 +243,9 @@ async function splitVideo(inputPath: string, outDir: string): Promise<string[]> 
       '-reset_timestamps', '1',
       outputPattern
     ];
+    let ffmpegError = '';
     const ffmpegProc = spawn('ffmpeg', ffmpegArgs);
-    ffmpegProc.stderr.on('data', (data) => process.stderr.write(data));
+    ffmpegProc.stderr.on('data', (data) => { ffmpegError += data.toString(); });
     ffmpegProc.on('close', (code) => {
       if (code === 0) {
         const files = fs.readdirSync(outDir)
@@ -252,6 +254,7 @@ async function splitVideo(inputPath: string, outDir: string): Promise<string[]> 
           .sort();
         resolve(files);
       } else {
+        if (ffmpegError) console.error('[FFMPEG ERROR]', ffmpegError);
         reject(new Error(`ffmpeg exited with code ${code}`));
       }
     });

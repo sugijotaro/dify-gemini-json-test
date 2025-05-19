@@ -1104,12 +1104,17 @@ async function main() {
       type: "string",
       describe: "テンプレートXMLファイルのパス (省略時は examples/minimal.xml)",
     })
+    .option("workdir", {
+      type: "string",
+      describe: "作業用ディレクトリ（runAllから渡される）",
+    })
     .help()
     .alias("help", "h")
     .parseAsync();
 
   const videoP = path.resolve(argv.video);
   const clipsJsonP = path.resolve(argv.clips);
+  const workDir = argv.workdir ? path.resolve(argv.workdir) : path.dirname(videoP);
   const templateXml = path.resolve(
     argv.template || path.join("examples", "minimal.xml")
   );
@@ -1132,8 +1137,11 @@ async function main() {
     console.error(`エラー: テンプレートXMLが見つかりません: ${templateXml}`);
     process.exit(1);
   }
+  if (!fsSync.existsSync(workDir)) {
+    fsSync.mkdirSync(workDir, { recursive: true });
+  }
   const intermediateXml = path.join(
-    path.dirname(videoP),
+    workDir,
     `${path.parse(videoP).name}_sequence.xml`
   );
   let finalXmlP: string;
@@ -1141,7 +1149,7 @@ async function main() {
     finalXmlP = path.resolve(argv.output);
   } else {
     finalXmlP = path.join(
-      path.dirname(videoP),
+      workDir,
       `${path.parse(videoP).name}_final.xml`
     );
   }
@@ -1152,8 +1160,7 @@ async function main() {
     !fsSync.existsSync(outputDir) &&
     outputDir !== path.resolve(".")
   ) {
-    console.error(`エラー: 出力先のディレクトリが存在しません: '${outputDir}'`);
-    process.exit(1);
+    fsSync.mkdirSync(outputDir, { recursive: true });
   }
   // 出力ファイルが既に存在する場合は自動で上書き
   if (fsSync.existsSync(finalXmlP)) {

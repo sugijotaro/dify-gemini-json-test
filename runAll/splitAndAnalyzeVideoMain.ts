@@ -343,20 +343,29 @@ async function main(): Promise<void> {
   }
 
   const inputVideo = process.argv[2];
+  const workDir = process.argv[3] || process.cwd();
   if (!inputVideo) {
-    console.error('Usage: npx tsx splitAndAnalyzeVideoMain.ts <video_path>');
+    console.error('Usage: npx tsx splitAndAnalyzeVideoMain.ts <video_path> <work_dir>');
     process.exit(1);
   }
   if (!fs.existsSync(inputVideo)) {
     console.error(`File not found: ${inputVideo}`);
     process.exit(1);
   }
+  if (!fs.existsSync(workDir)) {
+    fs.mkdirSync(workDir, { recursive: true });
+  }
 
-  const splitDir = path.join(process.cwd(), 'split_clips');
+  const splitDir = path.join(workDir, 'split_clips');
   if (fs.existsSync(splitDir)) {
     fs.rmSync(splitDir, { recursive: true, force: true });
   }
   fs.mkdirSync(splitDir);
+
+  const outputDir = path.join(workDir, 'output');
+  if (!fs.existsSync(outputDir)) {
+    fs.mkdirSync(outputDir);
+  }
 
   console.log(`[SPLIT] Splitting video into 10min/720p/1fps clips...`);
   let splitFiles: string[] = [];
@@ -371,7 +380,6 @@ async function main(): Promise<void> {
   // 既存パイプラインをsplitFilesに適用
   const files = splitFiles.map(f => path.basename(f));
   const ai = new GoogleGenAI({ apiKey });
-  const outputDir = await ensureOutputDir();
   const uploadedFiles: Array<{ name: string; localName: string; uri: string; mimeType: string; fileSizeMB: number; uploadDuration: number }> = [];
 
   // 並列アップロード

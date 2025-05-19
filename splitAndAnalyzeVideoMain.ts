@@ -8,10 +8,12 @@ import ffmpeg from 'fluent-ffmpeg';
 import ffprobe from 'ffprobe-static';
 import { spawn } from 'child_process';
 
-const MAX_PARALLEL_UPLOADS = 4;
-const MAX_PARALLEL_ANALYSIS = 4;
+const segmentLength = 600; // 10分
 
 ffmpeg.setFfprobePath(ffprobe.path);
+
+const MAX_PARALLEL_UPLOADS = 4;
+const MAX_PARALLEL_ANALYSIS = 4;
 
 async function ensureOutputDir() {
   const outputDir = path.join(process.cwd(), 'output');
@@ -249,7 +251,6 @@ async function splitVideo(inputPath: string, outDir: string): Promise<string[]> 
   if (!fs.existsSync(outDir)) fs.mkdirSync(outDir);
   const { seconds: totalSeconds } = await getVideoDuration(inputPath);
   const baseName = path.basename(inputPath, path.extname(inputPath));
-  const segmentLength = 600; // 10分
   let start = 0;
   let idx = 1;
   const outFiles: string[] = [];
@@ -408,6 +409,43 @@ async function main(): Promise<void> {
 
   // 一時ファイル削除
   // fs.rmSync(splitDir, { recursive: true, force: true });
+
+  // --- clips結合処理 ---
+  try {
+    const mergedOutputPath = path.join(outputDir, 'merged_clips.json');
+    const files = fs.readdirSync(outputDir)
+      .filter(f => f.endsWith('.json') && f !== 'merged_clips.json')
+      .sort(); // part順に並べる
+    let mergedClips: any[] = [];
+    // MM:SS→秒変換
+    function mmssToSeconds(mmss: string): number {
+      const [m, s] = mmss.split(':').map(Number);
+      return m * 60 + s;
+    }
+    files.forEach((file, idx) => {
+      const filePath = path.join(outputDir, file);
+      const offsetSec = idx * segmentLength;
+      try {
+        const data = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+        if (Array.isArray(data.clips)) {
+          const adjustedClips = data.clips.map((clip: any) => ({
+            ...clip,
+            start_time: secondsToMMSS(mmssToSeconds(clip.start_time) + offsetSec),
+            end_time: secondsToMMSS(mmssToSeconds(clip.end_time) + offsetSec),
+          }));
+          mergedClips = mergedClips.concat(adjustedClips);
+        } else {
+          console.warn(`[MERGE] No clips array in ${file}`);
+        }
+      } catch (e) {
+        console.warn(`[MERGE] Failed to parse ${file}:`, (e instanceof Error ? e.message : String(e)));
+      }
+    });
+    fs.writeFileSync(mergedOutputPath, JSON.stringify({ clips: mergedClips }, null, 2), 'utf-8');
+    console.log(`[MERGE] Merged ${files.length} files (${mergedClips.length} clips, offset adjusted) -> ${mergedOutputPath}`);
+  } catch (e) {
+    console.error('[MERGE] Failed to merge clips:', (e instanceof Error ? e.message : String(e)));
+  }
 
   const totalEnd = Date.now();
   const totalDuration = (totalEnd - totalStart) / 1000;

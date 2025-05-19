@@ -440,13 +440,21 @@ async function main(): Promise<void> {
       try {
         const data = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
         if (Array.isArray(data.clips)) {
-          const adjustedClips = data.clips.map((clip: any) => {
+          let prevEnd: string | null = null;
+          const adjustedClips = data.clips.map((clip: any, i: number, arr: any[]) => {
             const startSec = mmssToSeconds(clip.start_time) + offsetSec;
             const endSec = mmssToSeconds(clip.end_time) + offsetSec;
+            let start_time = secondsToHHMMSS(startSec);
+            let end_time = secondsToHHMMSS(endSec);
+            // n+1番目のstart_timeはn番目のend_timeと必ず一致させる
+            if (prevEnd !== null) {
+              start_time = prevEnd;
+            }
+            prevEnd = end_time;
             return {
               ...clip,
-              start_time: secondsToHHMMSS(startSec),
-              end_time: secondsToHHMMSS(endSec),
+              start_time,
+              end_time,
             };
           });
           mergedClips = mergedClips.concat(adjustedClips);

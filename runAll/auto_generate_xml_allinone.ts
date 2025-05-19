@@ -606,6 +606,17 @@ function parseTime(
 ): number {
   if (typeof timeStr === "number") return secondsToFrames(timeStr, timebase);
   if (typeof timeStr === "string") {
+    // MM:SS形式対応
+    if (/^\d{1,2}:\d{2}$/.test(timeStr)) {
+      const [m, s] = timeStr.split(":").map(Number);
+      return secondsToFrames(m * 60 + s, timebase);
+    }
+    // HH:MM:SS形式対応
+    if (/^\d{1,2}:\d{2}:\d{2}$/.test(timeStr)) {
+      const [h, m, s] = timeStr.split(":").map(Number);
+      return secondsToFrames(h * 3600 + m * 60 + s, timebase);
+    }
+    // タイムコード形式 or 秒数
     if (timeStr.includes(":") || timeStr.includes(";"))
       return timecodeToFrames(timeStr, timebase, ntsc);
     return secondsToFrames(parseFloat(timeStr), timebase);
@@ -1184,9 +1195,7 @@ async function main() {
   console.log(`\n最終XMLファイルの生成が完了しました: ${finalXmlP}`);
 }
 
-if (require.main === module) {
-  main().catch((err) => {
-    console.error("未処理の例外:", err);
-    process.exit(1);
-  });
-}
+main().catch((err) => {
+  console.error("未処理の例外:", err);
+  process.exit(1);
+});

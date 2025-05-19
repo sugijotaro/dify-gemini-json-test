@@ -2,3 +2,6 @@
 .env
 /output
 /split_clips
+/runAll/node_modules
+/runAll/output
+/runAll/split_clips

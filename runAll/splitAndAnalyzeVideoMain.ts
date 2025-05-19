@@ -419,8 +419,20 @@ async function main(): Promise<void> {
     let mergedClips: any[] = [];
     // MM:SS→秒変換
     function mmssToSeconds(mmss: string): number {
-      const [m, s] = mmss.split(':').map(Number);
-      return m * 60 + s;
+      const parts = mmss.split(':').map(Number);
+      if (parts.length === 2) {
+        return parts[0] * 60 + parts[1];
+      } else if (parts.length === 3) {
+        return parts[0] * 3600 + parts[1] * 60 + parts[2];
+      }
+      return 0;
+    }
+    // 秒→HH:MM:SS変換
+    function secondsToHHMMSS(seconds: number): string {
+      const h = Math.floor(seconds / 3600);
+      const m = Math.floor((seconds % 3600) / 60);
+      const s = Math.round(seconds % 60);
+      return [h, m, s].map(v => v.toString().padStart(2, '0')).join(':');
     }
     files.forEach((file, idx) => {
       const filePath = path.join(outputDir, file);
@@ -428,11 +440,15 @@ async function main(): Promise<void> {
       try {
         const data = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
         if (Array.isArray(data.clips)) {
-          const adjustedClips = data.clips.map((clip: any) => ({
-            ...clip,
-            start_time: secondsToMMSS(mmssToSeconds(clip.start_time) + offsetSec),
-            end_time: secondsToMMSS(mmssToSeconds(clip.end_time) + offsetSec),
-          }));
+          const adjustedClips = data.clips.map((clip: any) => {
+            const startSec = mmssToSeconds(clip.start_time) + offsetSec;
+            const endSec = mmssToSeconds(clip.end_time) + offsetSec;
+            return {
+              ...clip,
+              start_time: secondsToHHMMSS(startSec),
+              end_time: secondsToHHMMSS(endSec),
+            };
+          });
           mergedClips = mergedClips.concat(adjustedClips);
         } else {
           console.warn(`[MERGE] No clips array in ${file}`);

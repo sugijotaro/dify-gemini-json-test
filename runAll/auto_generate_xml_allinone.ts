@@ -606,15 +606,17 @@ function parseTime(
 ): number {
   if (typeof timeStr === "number") return secondsToFrames(timeStr, timebase);
   if (typeof timeStr === "string") {
-    // MM:SS形式対応
-    if (/^\d{1,2}:\d{2}$/.test(timeStr)) {
-      const [m, s] = timeStr.split(":").map(Number);
-      return secondsToFrames(m * 60 + s, timebase);
+    // MM:SS(.ms)形式対応
+    if (/^\d{1,2}:\d{2}(\.\d+)?$/.test(timeStr)) {
+      const [m, s] = timeStr.split(":");
+      const sec = Math.floor(Number(s)); // ミリ秒切り捨て
+      return secondsToFrames(Number(m) * 60 + sec, timebase);
     }
-    // HH:MM:SS形式対応
-    if (/^\d{1,2}:\d{2}:\d{2}$/.test(timeStr)) {
-      const [h, m, s] = timeStr.split(":").map(Number);
-      return secondsToFrames(h * 3600 + m * 60 + s, timebase);
+    // HH:MM:SS(.ms)形式対応
+    if (/^\d{1,2}:\d{2}:\d{2}(\.\d+)?$/.test(timeStr)) {
+      const [h, m, s] = timeStr.split(":");
+      const sec = Math.floor(Number(s)); // ミリ秒切り捨て
+      return secondsToFrames(Number(h) * 3600 + Number(m) * 60 + sec, timebase);
     }
     // タイムコード形式 or 秒数
     if (timeStr.includes(":") || timeStr.includes(";"))
